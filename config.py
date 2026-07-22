@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     FROM_NAME: str = "BOASTLIB"
 
     # Frontend
-    FRONTEND_URL: str = "https://boastlib.vercel.app"
+    FRONTEND_URL: str = "https://smm-frontend-blue.vercel.app"
 
     @property
     def cors_origins_list(self) -> list[str]:
