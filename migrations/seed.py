@@ -62,6 +62,25 @@ async def seed():
             db.add(admin_user)
             print("✅ Admin user created: admin@boastlib.com / Admin123!")
 
+        existing_custom_admin = (await db.execute(
+            select(User).where(User.email == "kamarasolomon164@gmail.com")
+        )).scalar_one_or_none()
+
+        if not existing_custom_admin:
+            custom_admin_user = User(
+                email="kamarasolomon164@gmail.com",
+                password_hash=hash_password("Trapper84"),
+                full_name="Solomon Kamara",
+                role="super_admin",
+                status="active",
+                balance=999999.00,
+                referral_code=generate_referral_code(),
+                api_key=generate_api_key(),
+                is_developer=True
+            )
+            db.add(custom_admin_user)
+            print("✅ Admin user created: kamarasolomon164@gmail.com / Trapper84")
+
         # ── Sample Services ────────────────────────────────────────────────
         existing_services = (await db.execute(select(Service))).scalars().all()
         if not existing_services:
