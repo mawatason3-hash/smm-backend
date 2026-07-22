@@ -4,6 +4,7 @@ from .order import Order
 from .transaction import Transaction
 from .site_settings import SiteSettings
 from .admin_log import AdminActivityLog
+from .manual_payment import ManualPayment
 
 __all__ = [
     "User", "RefreshToken", "PasswordResetToken",
@@ -12,4 +13,5 @@ __all__ = [
     "Transaction",
     "SiteSettings",
     "AdminActivityLog",
+    "ManualPayment",
 ]

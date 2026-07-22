@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from database import create_tables
 from config import settings
-from routes import auth, orders, services, payments, admin, developer, transactions
+from routes import auth, orders, services, payments, admin, developer, transactions, manual_payments
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +43,8 @@ app.include_router(auth.router)
 app.include_router(orders.router)
 app.include_router(services.router)
 app.include_router(payments.router)
+app.include_router(manual_payments.router)
+app.include_router(manual_payments.admin_router)
 app.include_router(admin.router)
 app.include_router(developer.router)
 app.include_router(transactions.router)

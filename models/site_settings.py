@@ -24,4 +24,12 @@ class SiteSettings(Base):
     default_provider = Column(String(50), default="jap")
     auto_sync_services = Column(Boolean, default=True)
 
+    # Liberia Mobile Money Settings
+    liberia_mtn_number = Column(String(50), default="0555166954")
+    liberia_orange_number = Column(String(50), default="")
+    whatsapp_support = Column(String(50), default="+250792405593")
+    telegram_support = Column(String(100), default="https://t.me/boastlib_support")
+    manual_payment_instructions = Column(Text, default="Send the amount to the number above and submit the transaction ID from your SMS receipt.")
+    manual_payment_time = Column(String(50), default="1-2 hours")
+
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
