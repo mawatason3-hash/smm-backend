@@ -8,7 +8,12 @@ import string
 import random
 from config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use bcrypt_sha256 which pre-hashes long passwords with SHA-256
+# This avoids the 72-byte limitation of raw bcrypt and prevents
+# backend detection/wrapping issues on some platforms.
+# Use PBKDF2-SHA256 as a robust, pure-Python fallback that avoids bcrypt
+# backend/platform-specific issues and the 72-byte bcrypt limit.
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
