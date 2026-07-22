@@ -36,6 +36,11 @@ async def get_provider_services(provider: str = "jap") -> List[Dict]:
     result = await call_provider_api(provider, {"action": "services"})
     if not result:
         return []
+    if isinstance(result, dict):
+        if isinstance(result.get("data"), list):
+            return result["data"]
+        if isinstance(result.get("services"), list):
+            return result["services"]
     return result if isinstance(result, list) else []
 
 async def place_provider_order(

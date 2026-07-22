@@ -361,22 +361,22 @@ async def get_settings(
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(select(SiteSettings))
-    settings = result.scalar_one_or_none()
-    if not settings:
+    settings_obj = result.scalar_one_or_none()
+    if not settings_obj:
         raise HTTPException(status_code=404, detail="Settings not found")
 
     return {
-        "site_name": settings.site_name,
-        "site_description": settings.site_description,
-        "currency": settings.currency,
-        "currency_symbol": settings.currency_symbol,
-        "telegram_link": settings.telegram_link,
-        "whatsapp_link": settings.whatsapp_link,
-        "support_email": settings.support_email,
-        "maintenance_mode": settings.maintenance_mode,
-        "registration_open": settings.registration_open,
-        "default_provider": settings.default_provider,
-        "auto_sync_services": settings.auto_sync_services,
+        "site_name": settings_obj.site_name,
+        "site_description": settings_obj.site_description,
+        "currency": settings_obj.currency,
+        "currency_symbol": settings_obj.currency_symbol,
+        "telegram_link": settings_obj.telegram_link,
+        "whatsapp_link": settings_obj.whatsapp_link,
+        "support_email": settings_obj.support_email,
+        "maintenance_mode": settings_obj.maintenance_mode,
+        "registration_open": settings_obj.registration_open,
+        "default_provider": settings_obj.default_provider,
+        "auto_sync_services": settings_obj.auto_sync_services,
     }
 
 @router.put("/settings")

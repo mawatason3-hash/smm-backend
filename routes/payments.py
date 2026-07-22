@@ -41,7 +41,7 @@ async def get_payment_methods(
         }
     ]
 
-    if settings.DODO_PAYMENTS_API_KEY:
+    if settings.DODO_PAYMENTS_API_KEY and settings.DODO_PAYMENTS_PRODUCT_ID:
         methods.append({
             "id": "dodopayments",
             "name": "Dodo Checkout",
@@ -51,8 +51,8 @@ async def get_payment_methods(
             "countries": "All"
         })
 
-    # Add mobile money options based on country
-    if current_user.country and current_user.country in COUNTRY_CORRESPONDENT_MAP:
+    # Add mobile money options based on country only when PawaPay is configured
+    if settings.PAWAPAY_API_KEY and current_user.country and current_user.country in COUNTRY_CORRESPONDENT_MAP:
         correspondents = COUNTRY_CORRESPONDENT_MAP[current_user.country]
         for network, code in correspondents.items():
             methods.append({

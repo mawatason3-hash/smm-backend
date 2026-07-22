@@ -4,6 +4,7 @@ from sqlalchemy import select, desc
 from database import get_db
 from models.service import Service, ServiceCategory
 from models.user import User
+from models.site_settings import SiteSettings
 from schemas.order import ServiceCreateRequest, ServiceUpdateRequest
 from middleware.auth_middleware import get_current_user, get_current_admin
 from services.provider_service import get_provider_services
@@ -171,6 +172,10 @@ async def sync_provider_services(
     if not services:
         raise HTTPException(status_code=400, detail=f"Could not fetch services from {provider}")
 
+    settings_result = await db.execute(select(SiteSettings))
+    settings_record = settings_result.scalar_one_or_none()
+    auto_activate = settings_record.auto_sync_services if settings_record else False
+
     synced = 0
     for svc in services:
         # Check if service already exists by provider_service_id
@@ -182,14 +187,16 @@ async def sync_provider_services(
         )
         existing_service = existing.scalar_one_or_none()
 
+        provider_cost = float(svc.get("rate", 0))
+
         if existing_service:
             # Update provider cost and keep markup consistent
-            provider_cost = float(svc.get("rate", 0))
             existing_service.cost_per_1k = provider_cost
             existing_service.rate_per_1k = float(markup_price(provider_cost))
+            if auto_activate:
+                existing_service.is_active = True
         else:
             # Create new
-            provider_cost = float(svc.get("rate", 0))
             new_service = Service(
                 platform=svc.get("category", "other").lower().split(" ")[0],
                 name=svc.get("name", ""),
@@ -200,7 +207,7 @@ async def sync_provider_services(
                 provider=provider,
                 provider_service_id=str(svc.get("service", "")),
                 avg_speed="1-2 hours",
-                is_active=False  # Admin activates manually
+                is_active=auto_activate
             )
             db.add(new_service)
             synced += 1
