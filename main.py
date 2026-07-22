@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from database import create_tables
 from config import settings
 from routes import auth, orders, services, payments, admin, developer, transactions, manual_payments
+import traceback
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,6 +35,12 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # Print full traceback to stdout so platform logs capture the stack trace for debugging
+    try:
+        print(f"Unhandled exception for request: {request.method} {request.url}")
+        traceback.print_exc()
+    except Exception:
+        pass
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error", "type": type(exc).__name__}
