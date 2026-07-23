@@ -498,3 +498,26 @@ async def get_activity_log(
         "page": page,
         "pages": (total + limit - 1) // limit
     }
+
+@router.get("/health-detail")
+async def get_health_details(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get detailed platform health status"""
+    from sqlalchemy import text
+    
+    now = datetime.now(timezone.utc)
+    health = {
+        "api": "operational",
+        "database": "error",
+        "timestamp": now.isoformat()
+    }
+    
+    try:
+        await db.execute(text("SELECT 1"))
+        health["database"] = "connected"
+    except Exception:
+        health["database"] = "error"
+    
+    return health
