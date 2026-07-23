@@ -9,6 +9,7 @@ from models.service import Service
 from models.site_settings import SiteSettings
 from models.admin_log import AdminActivityLog
 from middleware.auth_middleware import get_current_admin
+from services.provider_service import check_provider_balance
 from datetime import datetime, timezone, timedelta
 import uuid
 
@@ -95,6 +96,7 @@ async def admin_dashboard(
             "id": str(tx.id),
             "user_name": user.full_name,
             "type": tx.type,
+            "payment_method": tx.payment_method,
             "amount": float(tx.amount),
             "status": tx.status,
             "created_at": tx.created_at.isoformat()
@@ -115,6 +117,20 @@ async def admin_dashboard(
         "recent_users": recent_users,
         "recent_transactions": recent_transactions
     }
+
+@router.get("/provider-balance/{provider}")
+async def get_provider_balance(
+    provider: str,
+    admin: User = Depends(get_current_admin),
+):
+    if provider not in {"jap", "peakerr", "smmwiz"}:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+
+    result = await check_provider_balance(provider)
+    if not result:
+        raise HTTPException(status_code=404, detail="Provider not configured or unavailable")
+
+    return {"provider": provider, "balance": result}
 
 @router.get("/users")
 async def list_users(

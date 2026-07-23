@@ -30,22 +30,22 @@ async def get_payment_methods(
     current_user: User = Depends(get_current_user)
 ):
     """Return available payment methods, with mobile money options per country"""
-    methods = [
-        {
-            "id": "paystack",
-            "name": "Credit/Debit Card",
-            "description": "Visa, Mastercard via Paystack",
-            "icon": "card",
-            "instant": True,
-            "countries": "All"
-        }
-    ]
+    methods = []
 
     if settings.DODO_PAYMENTS_API_KEY and settings.DODO_PAYMENTS_PRODUCT_ID:
         methods.append({
             "id": "dodopayments",
-            "name": "Dodo Checkout",
-            "description": "Visa, Mastercard, and local checkout via Dodo Payments",
+            "name": "Credit/Debit Card",
+            "description": "Visa, Mastercard via DodoPay",
+            "icon": "card",
+            "instant": True,
+            "countries": "All"
+        })
+    elif settings.PAYSTACK_SECRET_KEY:
+        methods.append({
+            "id": "paystack",
+            "name": "Credit/Debit Card",
+            "description": "Visa, Mastercard via Paystack",
             "icon": "card",
             "instant": True,
             "countries": "All"

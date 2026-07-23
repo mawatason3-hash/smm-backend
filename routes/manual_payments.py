@@ -107,7 +107,7 @@ async def get_manual_payment_settings(db: AsyncSession = Depends(get_db)):
             "whatsapp": "+250792405593",
             "telegram": "https://t.me/boastlib_support",
             "instructions": "Send the amount to the number above and submit the transaction ID from your SMS receipt.",
-            "processing_time": "1-2 hours"
+            "processing_time": "15-30 mins"
         }
     
     return {
@@ -134,12 +134,26 @@ async def list_manual_payments(
     if status != "all":
         query = query.where(ManualPayment.status == status)
     
-    total_result = await db.execute(
-        select(func.count(ManualPayment.id)).where(
-            ManualPayment.status == status if status != "all" else True
-        )
-    )
+    if status == "all":
+        total_result = await db.execute(select(func.count(ManualPayment.id)))
+    else:
+        total_result = await db.execute(select(func.count(ManualPayment.id)).where(ManualPayment.status == status))
     total = total_result.scalar()
+
+    pending_result = await db.execute(select(func.count(ManualPayment.id)).where(ManualPayment.status == 'pending'))
+    approved_result = await db.execute(select(func.count(ManualPayment.id)).where(ManualPayment.status == 'approved'))
+    rejected_result = await db.execute(select(func.count(ManualPayment.id)).where(ManualPayment.status == 'rejected'))
+
+    pending_count = pending_result.scalar() or 0
+    approved_count = approved_result.scalar() or 0
+    rejected_count = rejected_result.scalar() or 0
+
+    counts = {
+        'pending': pending_count,
+        'approved': approved_count,
+        'rejected': rejected_count,
+        'all': pending_count + approved_count + rejected_count
+    }
     
     result = await db.execute(
         query
@@ -172,6 +186,7 @@ async def list_manual_payments(
             for payment, user in items
         ],
         "total": total,
+        "counts": counts,
         "page": page,
         "limit": limit,
         "pages": (total + limit - 1) // limit
