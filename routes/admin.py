@@ -130,7 +130,11 @@ async def get_provider_balance(
     if not result:
         raise HTTPException(status_code=404, detail="Provider not configured or unavailable")
 
-    return {"provider": provider, "balance": result}
+    return {
+        "provider": provider,
+        "balance": result.get("balance", "0"),
+        "currency": result.get("currency", "USD")
+    }
 
 @router.get("/users")
 async def list_users(
