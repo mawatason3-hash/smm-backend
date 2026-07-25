@@ -15,6 +15,20 @@ import uuid
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
+KNOWN_PLATFORMS = [
+    'instagram', 'tiktok', 'youtube', 'facebook', 'twitter', 'x',
+    'telegram', 'spotify', 'discord', 'twitch', 'linkedin',
+    'threads', 'snapchat', 'pinterest', 'reddit', 'whatsapp'
+]
+
+
+def extract_platform(raw_category: str, service_name: str = "") -> str:
+    combined = f"{raw_category} {service_name}".lower()
+    for platform_name in KNOWN_PLATFORMS:
+        if platform_name in combined:
+            return platform_name
+    return 'other'
+
 @router.get("/dashboard")
 async def admin_dashboard(
     admin: User = Depends(get_current_admin),
@@ -317,6 +331,23 @@ async def suspend_user(
     db.add(log)
     await db.commit()
     return {"message": "User suspended"}
+
+
+@router.post("/services/fix-platforms")
+async def fix_service_platforms(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Service))
+    services = result.scalars().all()
+    fixed = 0
+    for service in services:
+        corrected_platform = extract_platform(service.platform, service.name)
+        if service.platform != corrected_platform:
+            service.platform = corrected_platform
+            fixed += 1
+    await db.commit()
+    return {"message": f"Fixed platform field on {fixed} services"}
 
 
 @router.post("/services/bulk-action")
