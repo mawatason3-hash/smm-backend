@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, and_
+from sqlalchemy import select, func, desc, and_, update, delete
 from database import get_db
 from models.user import User
 from models.order import Order
@@ -317,6 +317,54 @@ async def suspend_user(
     db.add(log)
     await db.commit()
     return {"message": "User suspended"}
+
+
+@router.post("/services/bulk-action")
+async def bulk_service_action(
+    data: dict,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    action = data.get("action")
+    service_ids = data.get("service_ids")
+    provider = data.get("provider")
+
+    if action not in ("activate", "deactivate", "delete"):
+        raise HTTPException(400, "Invalid action")
+    if not service_ids and not provider:
+        raise HTTPException(400, "Must provide service_ids or provider")
+
+    if service_ids:
+        ids = [uuid.UUID(sid) for sid in service_ids]
+        condition = Service.id.in_(ids)
+    elif provider == "all":
+        condition = None
+    else:
+        condition = Service.provider == provider
+
+    if action == "delete":
+        stmt = delete(Service)
+        if condition is not None:
+            stmt = stmt.where(condition)
+    else:
+        stmt = update(Service).values(is_active=(action == "activate"))
+        if condition is not None:
+            stmt = stmt.where(condition)
+
+    result = await db.execute(stmt)
+    await db.commit()
+
+    log = AdminActivityLog(
+        admin_id=admin.id,
+        action=f"bulk_{action}_services",
+        target_type="service",
+        target_id="bulk",
+        details={"provider": provider, "count": result.rowcount, "explicit_ids": bool(service_ids)}
+    )
+    db.add(log)
+    await db.commit()
+
+    return {"message": f"{action.capitalize()}d {result.rowcount} services", "count": result.rowcount}
 
 @router.post("/users/{user_id}/activate")
 async def activate_user(

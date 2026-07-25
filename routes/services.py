@@ -13,6 +13,20 @@ import uuid
 
 router = APIRouter(prefix="/api/services", tags=["services"])
 
+KNOWN_PLATFORMS = [
+    'instagram', 'tiktok', 'youtube', 'facebook', 'twitter', 'x',
+    'telegram', 'spotify', 'discord', 'twitch', 'linkedin',
+    'threads', 'snapchat', 'pinterest', 'reddit', 'whatsapp'
+]
+
+
+def extract_platform(raw_category: str, service_name: str = "") -> str:
+    combined = f"{raw_category} {service_name}".lower()
+    for platform_name in KNOWN_PLATFORMS:
+        if platform_name in combined:
+            return platform_name
+    return 'other'
+
 @router.get("")
 async def list_services(
     db: AsyncSession = Depends(get_db),
@@ -202,8 +216,11 @@ async def sync_provider_services(
             skipped_count += 1
             continue
 
+        inferred_platform = extract_platform(svc.get("category", ""), svc.get("name", ""))
+
         if existing_service:
             # Update provider cost and keep markup consistent
+            existing_service.platform = inferred_platform
             existing_service.cost_per_1k = provider_cost
             existing_service.rate_per_1k = retail_rate
             if auto_activate:
@@ -211,7 +228,7 @@ async def sync_provider_services(
         else:
             # Create new
             new_service = Service(
-                platform=svc.get("category", "other").lower().split(" ")[0],
+                platform=inferred_platform,
                 name=svc.get("name", ""),
                 rate_per_1k=retail_rate,
                 cost_per_1k=provider_cost,
@@ -231,3 +248,20 @@ async def sync_provider_services(
         "total_from_provider": len(services),
         "skipped": skipped_count
     }
+
+
+@router.post("/admin/services/fix-platforms")
+async def fix_service_platforms(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Service))
+    services = result.scalars().all()
+    fixed = 0
+    for service in services:
+        corrected_platform = extract_platform(service.platform, service.name)
+        if service.platform != corrected_platform:
+            service.platform = corrected_platform
+            fixed += 1
+    await db.commit()
+    return {"message": f"Fixed platform field on {fixed} services"}
