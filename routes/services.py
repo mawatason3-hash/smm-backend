@@ -177,6 +177,9 @@ async def sync_provider_services(
     auto_activate = settings_record.auto_sync_services if settings_record else False
 
     synced = 0
+    skipped_count = 0
+    MAX_SAFE_PRICE = 999999
+
     for svc in services:
         # Check if service already exists by provider_service_id
         existing = await db.execute(
@@ -187,12 +190,22 @@ async def sync_provider_services(
         )
         existing_service = existing.scalar_one_or_none()
 
-        provider_cost = float(svc.get("rate", 0))
+        try:
+            provider_cost = float(svc.get("rate", 0))
+        except (TypeError, ValueError):
+            skipped_count += 1
+            continue
+
+        retail_rate = float(markup_price(provider_cost))
+
+        if provider_cost > MAX_SAFE_PRICE or retail_rate > MAX_SAFE_PRICE or provider_cost <= 0:
+            skipped_count += 1
+            continue
 
         if existing_service:
             # Update provider cost and keep markup consistent
             existing_service.cost_per_1k = provider_cost
-            existing_service.rate_per_1k = float(markup_price(provider_cost))
+            existing_service.rate_per_1k = retail_rate
             if auto_activate:
                 existing_service.is_active = True
         else:
@@ -200,7 +213,7 @@ async def sync_provider_services(
             new_service = Service(
                 platform=svc.get("category", "other").lower().split(" ")[0],
                 name=svc.get("name", ""),
-                rate_per_1k=float(markup_price(provider_cost)),
+                rate_per_1k=retail_rate,
                 cost_per_1k=provider_cost,
                 min_qty=int(svc.get("min", 10)),
                 max_qty=int(svc.get("max", 100000)),
@@ -213,4 +226,8 @@ async def sync_provider_services(
             synced += 1
 
     await db.commit()
-    return {"message": f"Synced {synced} new services from {provider}", "total_from_provider": len(services)}
+    return {
+        "message": f"Synced {synced} new services from {provider}",
+        "total_from_provider": len(services),
+        "skipped": skipped_count
+    }
