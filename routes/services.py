@@ -84,6 +84,7 @@ async def admin_list_services(
     platform: str = Query(None),
     status: str = Query(None),
     search: str = Query(None),
+    recommended: bool = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200)
 ):
@@ -95,6 +96,8 @@ async def admin_list_services(
         query = query.where(Service.is_active == True)
     elif status == "inactive":
         query = query.where(Service.is_active == False)
+    if recommended is not None:
+        query = query.where(Service.is_recommended == recommended)
     if search:
         query = query.where(Service.name.ilike(f"%{search}%"))
 
@@ -120,6 +123,7 @@ async def admin_list_services(
                 "provider_service_id": s.provider_service_id,
                 "avg_speed": s.avg_speed,
                 "is_active": s.is_active,
+                "is_recommended": s.is_recommended,
                 "refill_enabled": s.refill_enabled,
                 "cancel_enabled": s.cancel_enabled,
             }

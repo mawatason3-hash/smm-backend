@@ -49,6 +49,7 @@ class Service(Base):
     cancel_enabled = Column(Boolean, default=False)
 
     is_active = Column(Boolean, default=True, index=True)
+    is_recommended = Column(Boolean, default=False, nullable=False)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

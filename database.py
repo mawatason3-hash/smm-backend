@@ -47,3 +47,6 @@ async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("CREATE SEQUENCE IF NOT EXISTS order_number_seq START 10001"))
+        await conn.execute(text(
+            "ALTER TABLE services ADD COLUMN IF NOT EXISTS is_recommended BOOLEAN NOT NULL DEFAULT false"
+        ))
