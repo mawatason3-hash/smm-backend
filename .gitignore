@@ -10,3 +10,7 @@ env/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+
+*.csv
+Generate-TopServices.ps1
+recommended_ids.json

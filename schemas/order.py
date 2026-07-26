@@ -80,6 +80,7 @@ class ServiceCreateRequest(BaseModel):
     refill_enabled: bool = False
     cancel_enabled: bool = False
     is_active: bool = True
+    is_recommended: bool = False
 
 class ServiceUpdateRequest(BaseModel):
     platform: Optional[str] = None
@@ -97,3 +98,4 @@ class ServiceUpdateRequest(BaseModel):
     refill_enabled: Optional[bool] = None
     cancel_enabled: Optional[bool] = None
     is_active: Optional[bool] = None
+    is_recommended: Optional[bool] = None
