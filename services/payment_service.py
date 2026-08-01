@@ -4,7 +4,6 @@ import hashlib
 import re
 from typing import Optional, Dict, Any
 from config import settings
-from dodopayments import AsyncDodoPayments, DodoPayments
 
 # ─── PAYSTACK (Card Payments) ─────────────────────────────────────────────────
 
@@ -243,61 +242,4 @@ def get_country_correspondents(country: str) -> Dict[str, str]:
     return COUNTRY_CORRESPONDENT_MAP.get(country, {})
 
 
-async def create_dodo_checkout_session(
-    amount_usd: float,
-    customer_email: str,
-    return_url: str,
-    metadata: Optional[Dict[str, Any]] = None,
-) -> Optional[Dict[str, str]]:
-    if not settings.DODO_PAYMENTS_API_KEY or not settings.DODO_PAYMENTS_PRODUCT_ID:
-        return None
 
-    async with AsyncDodoPayments(
-        bearer_token=settings.DODO_PAYMENTS_API_KEY,
-        webhook_key=settings.DODO_PAYMENTS_WEBHOOK_KEY or None,
-        environment=settings.DODO_PAYMENTS_ENVIRONMENT or "test_mode",
-    ) as client:
-        try:
-            response = await client.checkout_sessions.create(
-                product_cart=[
-                    {
-                        "product_id": settings.DODO_PAYMENTS_PRODUCT_ID,
-                        "quantity": 1,
-                        "amount": int(amount_usd * 100),
-                    }
-                ],
-                billing_address={"country": "US"},
-                return_url=return_url,
-                metadata=metadata or {},
-            )
-            return {
-                "session_id": response.session_id,
-                "checkout_url": response.checkout_url,
-                "client_secret": response.client_secret,
-            }
-        except Exception as e:
-            print(f"Dodo checkout error: {e}")
-            return None
-
-
-def verify_dodo_webhook(
-    payload: bytes,
-    headers: Dict[str, str]
-) -> Optional[Dict[str, Any]]:
-    if not settings.DODO_PAYMENTS_API_KEY or not settings.DODO_PAYMENTS_WEBHOOK_KEY:
-        return None
-
-    try:
-        with DodoPayments(
-            bearer_token=settings.DODO_PAYMENTS_API_KEY,
-            webhook_key=settings.DODO_PAYMENTS_WEBHOOK_KEY,
-            environment=settings.DODO_PAYMENTS_ENVIRONMENT or "test_mode",
-        ) as client:
-            event = client.webhooks.unwrap(
-                payload.decode("utf-8"),
-                headers=headers,
-            )
-            return event.model_dump() if hasattr(event, "model_dump") else event
-    except Exception as e:
-        print(f"Dodo webhook verification error: {e}")
-        return None
