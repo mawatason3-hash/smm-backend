@@ -180,9 +180,21 @@ async def pawapay_initiate_deposit(
                 print(f"PawaPay rejected deposit: status={resp.status_code}")
                 return None
 
-            if result.get("status") in ("REJECTED", "FAILED", "DUPLICATE_IGNORED"):
-                print(f"PawaPay deposit not accepted: {result}")
-                return None
+            if isinstance(result, dict) and isinstance(result.get("data"), dict):
+                data = result["data"]
+                nested_status = data.get("status")
+                nested_deposit_id = data.get("depositId") or data.get("id")
+                if nested_status in ("REJECTED", "FAILED", "DUPLICATE_IGNORED"):
+                    print(f"PawaPay deposit not accepted: {result}")
+                    return None
+                if nested_deposit_id:
+                    return result
+
+            if isinstance(result, dict):
+                top_status = result.get("status")
+                if top_status in ("REJECTED", "FAILED", "DUPLICATE_IGNORED"):
+                    print(f"PawaPay deposit not accepted: {result}")
+                    return None
 
             return result
         except Exception as e:
