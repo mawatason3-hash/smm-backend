@@ -15,6 +15,18 @@ async def lifespan(app: FastAPI):
             "JWT_SECRET_KEY and JWT_REFRESH_SECRET must be set via environment variables in production — refusing to start "
             "with an auto-generated secret that would invalidate all sessions on every restart."
         )
+    
+    # Log payment provider configuration
+    if settings.PAYSTACK_SECRET_KEY:
+        print(f"✓ Paystack configured (Card Payments)")
+    else:
+        print(f"✗ Paystack NOT configured — card payments will fail")
+    
+    if settings.PAWAPAY_API_KEY:
+        print(f"✓ PawaPay configured (Mobile Money)")
+    else:
+        print(f"✗ PawaPay NOT configured — mobile money payments will fail")
+    
     yield
 
 app = FastAPI(

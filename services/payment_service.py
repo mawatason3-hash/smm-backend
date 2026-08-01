@@ -17,8 +17,8 @@ async def paystack_initialize_transaction(
     callback_url: str,
     metadata: Optional[Dict] = None
 ) -> Optional[Dict]:
-    """Initialize a Paystack transaction. Amount in USD converted to kobo (×100 NGN)"""
-    # Paystack uses NGN by default; for USD we use amount in cents
+    """Initialize a Paystack transaction. Amount in USD converted to cents"""
+    # Paystack API expects amount in the minor unit (cents for USD)
     amount_cents = int(amount_usd * 100)
 
     headers = {
@@ -36,17 +36,33 @@ async def paystack_initialize_transaction(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
+            print(f"→ Paystack POST {PAYSTACK_BASE}/transaction/initialize")
+            print(f"  Email: {email}, Amount: ${amount_usd} (cents: {amount_cents}), Ref: {reference}")
+            
             resp = await client.post(
                 f"{PAYSTACK_BASE}/transaction/initialize",
                 json=payload,
                 headers=headers
             )
             data = resp.json()
+            print(f"← Paystack response: status={resp.status_code}")
+            print(f"  Body: {data}")
+            
+            if resp.status_code not in (200, 201):
+                print(f"✗ Paystack API error {resp.status_code}: {data.get('message') or data}")
+                return None
+            
             if data.get("status"):
-                return data["data"]
+                result = data.get("data")
+                print(f"✓ Paystack transaction initialized: {result.get('reference', 'N/A')}")
+                return result
+            
+            print(f"✗ Paystack returned status=false: {data}")
             return None
         except Exception as e:
-            print(f"Paystack init error: {e}")
+            print(f"✗ Paystack request failed: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 async def paystack_verify_transaction(reference: str) -> Optional[Dict]:
@@ -168,16 +184,20 @@ async def pawapay_initiate_deposit(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
+            print(f"→ PawaPay request: POST {PAWAPAY_BASE}/deposits")
+            print(f"  Correspondent: {correspondent}, Phone: {phone_number}, Amount: {amount} {currency}")
+            
             resp = await client.post(
                 f"{PAWAPAY_BASE}/deposits",
                 json=payload,
                 headers=headers
             )
             result = resp.json()
-            print(f"PawaPay response: status={resp.status_code} body={result}")
+            print(f"← PawaPay response: status={resp.status_code}")
+            print(f"  Body: {result}")
 
             if resp.status_code not in (200, 201, 202):
-                print(f"PawaPay rejected deposit: status={resp.status_code}")
+                print(f"✗ PawaPay API error {resp.status_code}: {result.get('message') or result.get('detail') or result}")
                 return None
 
             if isinstance(result, dict) and isinstance(result.get("data"), dict):
@@ -185,20 +205,24 @@ async def pawapay_initiate_deposit(
                 nested_status = data.get("status")
                 nested_deposit_id = data.get("depositId") or data.get("id")
                 if nested_status in ("REJECTED", "FAILED", "DUPLICATE_IGNORED"):
-                    print(f"PawaPay deposit not accepted: {result}")
+                    print(f"✗ PawaPay deposit rejected: {nested_status}")
                     return None
                 if nested_deposit_id:
+                    print(f"✓ PawaPay deposit accepted: {nested_deposit_id}")
                     return result
 
             if isinstance(result, dict):
                 top_status = result.get("status")
                 if top_status in ("REJECTED", "FAILED", "DUPLICATE_IGNORED"):
-                    print(f"PawaPay deposit not accepted: {result}")
+                    print(f"✗ PawaPay deposit rejected: {top_status}")
                     return None
 
+            print(f"✓ PawaPay deposit response received")
             return result
         except Exception as e:
-            print(f"PawaPay deposit error: {e}")
+            print(f"✗ PawaPay request failed: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 async def pawapay_check_deposit(deposit_id: str) -> Optional[Dict]:

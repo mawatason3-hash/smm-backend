@@ -16,8 +16,6 @@ from services.payment_service import (
     get_country_correspondents,
     COUNTRY_CORRESPONDENT_MAP,
     normalize_phone_e164,
-    create_dodo_checkout_session,
-    verify_dodo_webhook,
 )
 from config import settings
 from decimal import Decimal
@@ -33,21 +31,13 @@ async def get_payment_methods(
     """Return available payment methods, with mobile money options per country"""
     methods = []
 
-    if settings.DODO_PAYMENTS_API_KEY and settings.DODO_PAYMENTS_PRODUCT_ID:
-        methods.append({
-            "id": "dodopayments",
-            "name": "Credit/Debit Card",
-            "description": "Visa, Mastercard via DodoPay",
-            "icon": "card",
-            "instant": True,
-            "countries": "All"
-        })
-    elif settings.PAYSTACK_SECRET_KEY:
+    # Paystack for card payments
+    if settings.PAYSTACK_SECRET_KEY:
         methods.append({
             "id": "paystack",
             "name": "Credit/Debit Card",
             "description": "Visa, Mastercard via Paystack",
-            "icon": "card",
+            "icon": "💳",
             "instant": True,
             "countries": "All"
         })
@@ -93,11 +83,23 @@ async def initialize_paystack(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # Verify Paystack is configured
+    if not settings.PAYSTACK_SECRET_KEY:
+        print(f"✗ Paystack is not configured (PAYSTACK_SECRET_KEY not set)")
+        raise HTTPException(status_code=503, detail="Paystack service is not configured")
+    
     if data.amount < 1:
+        print(f"✗ Amount {data.amount} is below minimum of $1")
         raise HTTPException(status_code=400, detail="Minimum deposit is $1")
+
+    if not current_user.email:
+        print(f"✗ User {current_user.id} has no email address")
+        raise HTTPException(status_code=400, detail="Your account must have an email address for card payments")
 
     reference = f"BOAST_{secrets.token_hex(8).upper()}"
     callback_url = f"{settings.FRONTEND_URL}/dashboard/wallet?ref={reference}"
+    
+    print(f"→ Paystack initialization: email={current_user.email}, amount=${data.amount}, ref={reference}")
 
     result = await paystack_initialize_transaction(
         email=current_user.email,
@@ -108,7 +110,10 @@ async def initialize_paystack(
     )
 
     if not result:
-        raise HTTPException(status_code=400, detail="Could not initialize payment")
+        print(f"✗ Paystack returned empty result")
+        raise HTTPException(status_code=400, detail="Could not initialize payment. Please try again.")
+    
+    print(f"✓ Paystack authorization_url: {result.get('authorization_url', 'N/A')[:50]}...")
 
     # Create pending transaction
     transaction = Transaction(
@@ -209,59 +214,40 @@ async def paystack_webhook(
 
     return {"status": "ok"}
 
-@router.post("/dodopayments/webhook")
-async def dodo_payments_webhook(request: Request, db: AsyncSession = Depends(get_db)):
-    body = await request.body()
-    headers = dict(request.headers)
-
-    event = verify_dodo_webhook(body, headers)
-    if not event:
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
-
-    payload = event if isinstance(event, dict) else event.model_dump()
-    event_type = payload.get("type")
-    data = payload.get("data", {}) or {}
-    metadata = data.get("metadata", {}) if isinstance(data, dict) else getattr(data, "metadata", {})
-    reference = metadata.get("reference")
-
-    if event_type == "payment.succeeded" and reference:
-        result = await db.execute(
-            select(Transaction).where(
-                Transaction.payment_reference == reference,
-                Transaction.status == "pending"
-            )
-        )
-        transaction = result.scalar_one_or_none()
-
-        if transaction:
-            user_result = await db.execute(select(User).where(User.id == transaction.user_id))
-            user = user_result.scalar_one_or_none()
-
-            if user:
-                amount = Decimal(str(transaction.amount))
-                user.balance += amount
-                transaction.status = "completed"
-                transaction.balance_after = float(user.balance)
-                await db.commit()
-
-    return {"status": "ok"}
-
 @router.post("/pawapay/initiate")
 async def initiate_pawapay(
     data: InitiatePaymentRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # Verify PawaPay is configured
+    if not settings.PAWAPAY_API_KEY:
+        print(f"✗ PawaPay is not configured (PAWAPAY_API_KEY not set)")
+        raise HTTPException(status_code=503, detail="PawaPay service is not configured")
+    
     if not data.phone:
         raise HTTPException(status_code=400, detail="Phone number required for mobile money")
 
+    # Verify user has a country set
+    if not current_user.country:
+        print(f"✗ User {current_user.id} has no country set")
+        raise HTTPException(status_code=400, detail="Your account country must be set for mobile money payments")
+
     try:
         normalized_phone = normalize_phone_e164(data.phone, current_user.country)
+        print(f"✓ Normalized phone: {data.phone} → {normalized_phone} (country: {current_user.country})")
     except ValueError as exc:
+        print(f"✗ Phone normalization failed: {exc}")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Extract correspondent from payment_method (e.g., "pawapay_MTN_MOMO_RWA")
+    if not data.payment_method or not data.payment_method.startswith("pawapay_"):
+        print(f"✗ Invalid payment method: {data.payment_method}")
+        raise HTTPException(status_code=400, detail=f"Invalid payment method: {data.payment_method}")
+    
     correspondent = data.payment_method.replace("pawapay_", "")
+    print(f"✓ Payment method: {data.payment_method} → correspondent: {correspondent}")
+    
     deposit_id = str(uuid.uuid4())
 
     result = await pawapay_initiate_deposit(
@@ -272,9 +258,10 @@ async def initiate_pawapay(
         phone_number=normalized_phone,
         description=f"BOASTLIB wallet top-up ${data.amount}"
     )
-    print(f"PawaPay initiate result for user {current_user.id}: {result}")
+    print(f"✓ PawaPay initiate result for user {current_user.id}: {result}")
 
     if not result:
+        print(f"✗ PawaPay returned None or empty result")
         raise HTTPException(status_code=400, detail="Could not initiate mobile money payment")
 
     # Create pending transaction
@@ -297,49 +284,6 @@ async def initiate_pawapay(
         "deposit_id": deposit_id,
         "status": result.get("status", "PENDING"),
         "message": "Check your phone for the payment prompt"
-    }
-
-@router.post("/dodopayments/initialize")
-async def initialize_dodo_payments(
-    data: InitiatePaymentRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    if data.amount < 1:
-        raise HTTPException(status_code=400, detail="Minimum deposit is $1")
-
-    reference = f"BOAST_DODO_{secrets.token_hex(8).upper()}"
-    callback_url = f"{settings.FRONTEND_URL}/dashboard/wallet?ref={reference}"
-
-    result = await create_dodo_checkout_session(
-        amount_usd=data.amount,
-        customer_email=current_user.email,
-        return_url=callback_url,
-        metadata={"user_id": str(current_user.id), "amount": data.amount, "reference": reference}
-    )
-
-    if not result:
-        raise HTTPException(status_code=400, detail="Could not initialize Dodo Payments checkout")
-
-    transaction = Transaction(
-        user_id=current_user.id,
-        type="deposit",
-        amount=data.amount,
-        balance_before=float(current_user.balance),
-        balance_after=float(current_user.balance),
-        payment_method="dodopayments",
-        payment_reference=reference,
-        payment_country=current_user.country,
-        status="pending",
-        description=f"Wallet deposit via Dodo Payments - ${data.amount}"
-    )
-    db.add(transaction)
-    await db.commit()
-
-    return {
-        "checkout_url": result["checkout_url"],
-        "reference": reference,
-        "session_id": result.get("session_id")
     }
 
 @router.post("/pawapay/webhook")
