@@ -256,7 +256,7 @@ async def initiate_pawapay(
         currency="USD",
         correspondent=correspondent,
         phone_number=normalized_phone,
-        description=f"BOASTLIB wallet top-up ${data.amount}"
+        description="BOASTLIB TOPUP"
     )
     print(f"✓ PawaPay initiate result for user {current_user.id}: {result}")
 
