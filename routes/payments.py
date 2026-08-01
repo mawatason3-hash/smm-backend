@@ -65,6 +65,15 @@ async def get_payment_methods(
                 "correspondent": code
             })
 
+    methods.append({
+        "id": "manual_transfer",
+        "name": "Manual Transfer",
+        "description": "Use bank/mobile transfer and submit proof for review",
+        "icon": "manual",
+        "instant": False,
+        "countries": "All"
+    })
+
     # Always add crypto option
     methods.append({
         "id": "crypto",

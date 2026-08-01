@@ -38,8 +38,8 @@ async def submit_manual_payment(
     if data.amount < 1:
         raise HTTPException(status_code=400, detail="Minimum deposit is $1")
     
-    if data.network not in ["MTN_LIBERIA", "ORANGE_LIBERIA"]:
-        raise HTTPException(status_code=400, detail="Invalid network")
+    if not data.network or not data.network.strip():
+        raise HTTPException(status_code=400, detail="Network is required")
     
     if not data.phone_used:
         raise HTTPException(status_code=400, detail="Phone number required")
