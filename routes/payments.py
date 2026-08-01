@@ -15,6 +15,7 @@ from services.payment_service import (
     pawapay_check_deposit,
     get_country_correspondents,
     COUNTRY_CORRESPONDENT_MAP,
+    normalize_phone_e164,
     create_dodo_checkout_session,
     verify_dodo_webhook,
 )
@@ -254,6 +255,11 @@ async def initiate_pawapay(
     if not data.phone:
         raise HTTPException(status_code=400, detail="Phone number required for mobile money")
 
+    try:
+        normalized_phone = normalize_phone_e164(data.phone, current_user.country)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     # Extract correspondent from payment_method (e.g., "pawapay_MTN_MOMO_RWA")
     correspondent = data.payment_method.replace("pawapay_", "")
     deposit_id = str(uuid.uuid4())
@@ -263,9 +269,10 @@ async def initiate_pawapay(
         amount=data.amount,
         currency="USD",
         correspondent=correspondent,
-        phone_number=data.phone,
+        phone_number=normalized_phone,
         description=f"BOASTLIB wallet top-up ${data.amount}"
     )
+    print(f"PawaPay initiate result for user {current_user.id}: {result}")
 
     if not result:
         raise HTTPException(status_code=400, detail="Could not initiate mobile money payment")
@@ -288,7 +295,7 @@ async def initiate_pawapay(
 
     return {
         "deposit_id": deposit_id,
-        "status": result.get("status", "ACCEPTED"),
+        "status": result.get("status", "PENDING"),
         "message": "Check your phone for the payment prompt"
     }
 

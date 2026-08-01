@@ -1,6 +1,7 @@
 import httpx
 import hmac
 import hashlib
+import re
 from typing import Optional, Dict, Any
 from config import settings
 from dodopayments import AsyncDodoPayments, DodoPayments
@@ -87,8 +88,56 @@ COUNTRY_CORRESPONDENT_MAP = {
     "Mozambique": {"Vodacom": "VODACOM_MOZ", "Airtel": "AIRTEL_OAPI_MOZ"},
     "Cameroon": {"MTN": "MTN_MOMO_CMR", "Orange": "ORANGE_CMR"},
     "Ivory Coast": {"MTN": "MTN_MOMO_CIV", "Orange": "ORANGE_CIV"},
+    "Côte d'Ivoire": {"MTN": "MTN_MOMO_CIV", "Orange": "ORANGE_CIV"},
     "Senegal": {"Orange": "ORANGE_SEN", "Free": "FREE_SEN"},
 }
+
+COUNTRY_DIAL_CODES = {
+    "Rwanda": "250",
+    "Liberia": "231",
+    "Kenya": "254",
+    "Uganda": "256",
+    "Tanzania": "255",
+    "Nigeria": "234",
+    "Ghana": "233",
+    "Zambia": "260",
+    "Mozambique": "258",
+    "Cameroon": "237",
+    "Ivory Coast": "225",
+    "Côte d'Ivoire": "225",
+    "Senegal": "221",
+}
+
+
+def normalize_phone_e164(raw_phone: str, user_country: str = None) -> str:
+    """
+    Accepts phone numbers in common formats and returns a normalized E.164-like
+    number for PawaPay (digits only, no leading + or 0).
+    """
+    if not raw_phone or not str(raw_phone).strip():
+        raise ValueError("Phone number required for mobile money")
+
+    cleaned = re.sub(r"\D", "", str(raw_phone).strip())
+    if not cleaned:
+        raise ValueError("Phone number required for mobile money")
+
+    # If the caller already sent an international format, keep it.
+    for dial_code in COUNTRY_DIAL_CODES.values():
+        if cleaned.startswith(dial_code) and len(cleaned) >= len(dial_code) + 8:
+            return cleaned
+
+    # If the caller sent a local national format, prefix the country dial code.
+    if cleaned.startswith("0"):
+        cleaned = cleaned[1:]
+        dial_code = COUNTRY_DIAL_CODES.get(user_country or "")
+        if not dial_code:
+            raise ValueError(
+                f"Cannot determine country code for phone normalization — "
+                f"user country '{user_country}' not in COUNTRY_DIAL_CODES"
+            )
+        return dial_code + cleaned
+
+    return cleaned
 
 async def pawapay_initiate_deposit(
     deposit_id: str,
@@ -98,20 +147,22 @@ async def pawapay_initiate_deposit(
     phone_number: str,
     description: str
 ) -> Optional[Dict]:
+    from datetime import datetime, timezone
+
     headers = {
         "Authorization": f"Bearer {settings.PAWAPAY_API_KEY}",
         "Content-Type": "application/json",
     }
     payload = {
         "depositId": deposit_id,
-        "amount": str(int(amount * 100)),  # In smallest currency unit
+        "amount": str(amount),
         "currency": currency,
         "correspondent": correspondent,
         "payer": {
             "type": "MSISDN",
             "address": {"value": phone_number}
         },
-        "customerTimestamp": "2024-01-01T00:00:00Z",
+        "customerTimestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "statementDescription": description
     }
 
@@ -122,7 +173,18 @@ async def pawapay_initiate_deposit(
                 json=payload,
                 headers=headers
             )
-            return resp.json()
+            result = resp.json()
+            print(f"PawaPay response: status={resp.status_code} body={result}")
+
+            if resp.status_code not in (200, 201, 202):
+                print(f"PawaPay rejected deposit: status={resp.status_code}")
+                return None
+
+            if result.get("status") in ("REJECTED", "FAILED", "DUPLICATE_IGNORED"):
+                print(f"PawaPay deposit not accepted: {result}")
+                return None
+
+            return result
         except Exception as e:
             print(f"PawaPay deposit error: {e}")
             return None
