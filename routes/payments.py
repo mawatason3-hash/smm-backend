@@ -124,9 +124,10 @@ async def initialize_paystack(
         paystack_currency=paystack_currency
     )
 
-    if not result:
-        print(f"✗ Paystack returned empty result")
-        raise HTTPException(status_code=400, detail="Could not initialize payment. Please try again.")
+    if not result or (isinstance(result, dict) and result.get("error")):
+        error_message = result.get("error") if isinstance(result, dict) else "Could not initialize payment. Please try again."
+        print(f"✗ Paystack initialize failed: {error_message}")
+        raise HTTPException(status_code=400, detail=f"Paystack initialization failed: {error_message}")
     
     print(f"✓ Paystack authorization_url: {result.get('authorization_url', 'N/A')[:50]}...")
 

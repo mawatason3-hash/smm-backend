@@ -63,16 +63,18 @@ async def paystack_initialize_transaction(
             print(f"  Body: {data}")
             
             if resp.status_code not in (200, 201):
-                print(f"✗ Paystack API error {resp.status_code}: {data.get('message') or data}")
-                return None
+                error_message = data.get('message') or data
+                print(f"✗ Paystack API error {resp.status_code}: {error_message}")
+                return {"error": str(error_message), "status_code": resp.status_code}
             
             if data.get("status"):
                 result = data.get("data")
                 print(f"✓ Paystack transaction initialized: {result.get('reference', 'N/A')}")
                 return result
             
-            print(f"✗ Paystack returned status=false: {data}")
-            return None
+            error_message = data.get('message') or data
+            print(f"✗ Paystack returned status=false: {error_message}")
+            return {"error": str(error_message), "status_code": resp.status_code}
         except Exception as e:
             print(f"✗ Paystack request failed: {type(e).__name__}: {e}")
             import traceback
