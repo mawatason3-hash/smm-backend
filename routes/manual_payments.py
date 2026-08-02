@@ -65,7 +65,7 @@ async def submit_manual_payment(
     
     return {
         "id": str(payment.id),
-        "message": "Submitted! Admin will credit within 1-2 hours"
+        "message": "Submitted! Admin will credit within 4-10 minutes"
     }
 
 @router.get("/manual/my-requests")
