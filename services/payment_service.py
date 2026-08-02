@@ -322,7 +322,7 @@ async def pawapay_initiate_deposit(
             print(f"  Correspondent: {correspondent}, Phone: {phone_number}, Amount: {amount} {currency}")
             
             resp = await client.post(
-                f"{PAWAPAY_BASE}/deposits",
+                f"{PAWAPAY_BASE}/v2/deposits",
                 json=payload,
                 headers=headers
             )
