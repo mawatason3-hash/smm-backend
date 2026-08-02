@@ -14,7 +14,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from decimal import Decimal
 import uuid
-from services.notification_service import send_telegram_message
+from services.notification_service import send_telegram_message, send_whatsapp_message
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 
@@ -48,6 +48,9 @@ async def submit_manual_payment(
     else:
         if not data.phone_used:
             raise HTTPException(status_code=400, detail="Contact phone number required for manual payment request")
+        data.network = data.network or "OTHER"
+        data.transaction_id = None
+        data.proof_note = None
 
     payment = ManualPayment(
         id=uuid.uuid4(),
@@ -65,17 +68,23 @@ async def submit_manual_payment(
     await db.commit()
     await db.refresh(payment)
 
-    # Try to notify admin via Telegram if configured
+    # Try to notify admin via Telegram and WhatsApp if configured
+    message = (
+        f"New manual payment request:\n"
+        f"User: {current_user.full_name} <{current_user.email}>\n"
+        f"Country: {current_user.country}\n"
+        f"Amount: ${payment.amount}\n"
+        f"Phone: {payment.phone_used}\n"
+        f"Network: {payment.network}"
+    )
+
     try:
-        message = (
-            f"New manual payment request:\n"
-            f"User: {current_user.full_name} <{current_user.email}>\n"
-            f"Country: {current_user.country}\n"
-            f"Amount: ${payment.amount}\n"
-            f"Phone: {payment.phone_used}\n"
-            f"Network: {payment.network}"
-        )
         await send_telegram_message(message)
+    except Exception:
+        pass
+
+    try:
+        await send_whatsapp_message(message)
     except Exception:
         pass
 
@@ -325,11 +334,20 @@ async def notify_manual_payment(
         f"Network: {payment.network}\n"
         f"Status: {payment.status}"
     )
-    success = await send_telegram_message(message)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to send notification. Check Telegram settings.")
 
-    return {"message": "Notification sent to admin Telegram."}
+    telegram_success = await send_telegram_message(message)
+    whatsapp_success = await send_whatsapp_message(message)
+
+    if not telegram_success and not whatsapp_success:
+        raise HTTPException(status_code=500, detail="Failed to send notification. Check Telegram/WhatsApp settings.")
+
+    if telegram_success and whatsapp_success:
+        return {"message": "Notification sent to admin Telegram and WhatsApp."}
+
+    if telegram_success:
+        return {"message": "Notification sent to admin Telegram."}
+
+    return {"message": "Notification sent to admin WhatsApp."}
 
 @admin_router.post("/manual-payments/{payment_id}/reject")
 async def reject_manual_payment(

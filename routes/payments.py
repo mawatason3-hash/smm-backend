@@ -13,7 +13,7 @@ from services.payment_service import (
     verify_paystack_webhook,
     pawapay_initiate_deposit,
     pawapay_check_deposit,
-    get_country_correspondents,
+    get_pawapay_country_correspondents,
     COUNTRY_CORRESPONDENT_MAP,
     normalize_phone_e164,
     get_pawapay_active_configuration,
@@ -46,8 +46,8 @@ async def get_payment_methods(
         })
 
     # Add mobile money options based on country only when PawaPay is configured
-    if settings.PAWAPAY_API_KEY and current_user.country and current_user.country in COUNTRY_CORRESPONDENT_MAP:
-        correspondents = COUNTRY_CORRESPONDENT_MAP[current_user.country]
+    if settings.PAWAPAY_API_KEY and current_user.country:
+        correspondents = await get_pawapay_country_correspondents(current_user.country)
         for network, code in correspondents.items():
             methods.append({
                 "id": f"pawapay_{code}",

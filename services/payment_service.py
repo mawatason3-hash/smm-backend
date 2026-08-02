@@ -2,6 +2,7 @@ import httpx
 import hmac
 import hashlib
 import re
+import unicodedata
 from typing import Optional, Dict, Any
 from config import settings
 
@@ -112,7 +113,45 @@ def verify_paystack_webhook(payload: bytes, signature: str) -> bool:
 PAWAPAY_BASE = settings.PAWAPAY_BASE_URL
 
 # ─── PAWAPAY Configuration Cache ──────────────────────────────────────────────
-_active_config_cache = {"data": None, "fetched_at": None}
+_active_config_cache = {
+    "currency_map": None,
+    "country_map": None,
+    "fetched_at": None,
+}
+
+
+def _normalize_country_name(name: str) -> str:
+    if not name:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode("ascii")
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized.lower()).strip()
+    return normalized
+
+
+def _format_pawapay_network_name(provider_code: str) -> str:
+    if not provider_code:
+        return "Mobile Money"
+    code = provider_code.upper()
+    if "MTN" in code:
+        return "MTN"
+    if "AIRTEL" in code:
+        return "Airtel"
+    if "VODACOM" in code:
+        return "Vodacom"
+    if "VODAFONE" in code:
+        return "Vodafone"
+    if "ORANGE" in code:
+        return "Orange"
+    if "LONESTAR" in code:
+        return "Lonestar"
+    if "FREE" in code:
+        return "Free"
+    if "MOOV" in code:
+        return "Moov"
+    if "WAVE" in code:
+        return "Wave"
+    return provider_code.replace("_", " ").title()
+
 
 async def get_pawapay_active_configuration() -> Dict[str, str]:
     """
@@ -123,11 +162,11 @@ async def get_pawapay_active_configuration() -> Dict[str, str]:
     from datetime import datetime, timezone, timedelta
 
     now = datetime.now(timezone.utc)
-    if (_active_config_cache["data"] is not None and
+    if (_active_config_cache["currency_map"] is not None and
         _active_config_cache["fetched_at"] is not None and
         now - _active_config_cache["fetched_at"] < timedelta(hours=1)):
         print(f"✓ Using cached PawaPay configuration (expires in {(timedelta(hours=1) - (now - _active_config_cache['fetched_at'])).seconds // 60} min)")
-        return _active_config_cache["data"]
+        return _active_config_cache["currency_map"]
 
     headers = {"Authorization": f"Bearer {settings.PAWAPAY_API_KEY}"}
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -144,23 +183,43 @@ async def get_pawapay_active_configuration() -> Dict[str, str]:
 
             data = resp.json()
             mapping = {}
-            
+            country_map: Dict[str, Dict[str, str]] = {}
+
             for country in data.get("countries", []):
-                for provider in country.get("providers", []):
-                    provider_code = provider.get("provider")
+                raw_country_name = country.get("name") or country.get("country") or country.get("countryName") or country.get("displayName")
+                if not raw_country_name:
+                    continue
+                country_name = _normalize_country_name(raw_country_name)
+                provider_map: Dict[str, str] = {}
+
+                for provider in country.get("providers", []) or []:
+                    provider_code = provider.get("provider") or provider.get("code")
                     if not provider_code:
                         continue
-                    for currency_info in provider.get("currencies", []):
+
+                    local_currency = None
+                    for currency_info in provider.get("currencies", []) or []:
                         currency = currency_info.get("currency")
-                        operation_types = currency_info.get("operationTypes", {})
+                        operation_types = currency_info.get("operationTypes", {}) or {}
                         if currency and operation_types.get("DEPOSIT") is not None:
-                            mapping[provider_code] = currency
-                            print(f"  ✓ {provider_code} → {currency}")
+                            local_currency = currency
                             break
-            
-            _active_config_cache["data"] = mapping
+
+                    if not local_currency:
+                        continue
+
+                    mapping[provider_code] = local_currency
+                    provider_name = provider.get("name") or provider.get("title") or _format_pawapay_network_name(provider_code)
+                    provider_map[provider_name] = provider_code
+                    print(f"  ✓ {provider_code} → {local_currency} ({provider_name} in {raw_country_name})")
+
+                if provider_map:
+                    country_map[country_name] = provider_map
+
+            _active_config_cache["currency_map"] = mapping
+            _active_config_cache["country_map"] = country_map
             _active_config_cache["fetched_at"] = now
-            print(f"✓ PawaPay configuration fetched: {len(mapping)} providers")
+            print(f"✓ PawaPay configuration fetched: {len(mapping)} providers across {len(country_map)} countries")
             return mapping
         except Exception as e:
             print(f"✗ Failed to fetch PawaPay configuration: {type(e).__name__}: {e}")
@@ -246,19 +305,52 @@ COUNTRY_CORRESPONDENT_MAP = {
 }
 
 COUNTRY_DIAL_CODES = {
-    "Rwanda": "250",
-    "Liberia": "231",
-    "Kenya": "254",
-    "Uganda": "256",
-    "Tanzania": "255",
-    "Nigeria": "234",
-    "Ghana": "233",
-    "Zambia": "260",
-    "Mozambique": "258",
+    "Algeria": "213",
+    "Angola": "244",
+    "Benin": "229",
+    "Botswana": "267",
+    "Burkina Faso": "226",
+    "Burundi": "257",
     "Cameroon": "237",
-    "Ivory Coast": "225",
+    "Cape Verde": "238",
     "Côte d'Ivoire": "225",
+    "Ivory Coast": "225",
+    "Eswatini": "268",
+    "Ethiopia": "251",
+    "Gabon": "241",
+    "Gambia": "220",
+    "Ghana": "233",
+    "Guinea": "224",
+    "Guinea-Bissau": "245",
+    "Kenya": "254",
+    "Lesotho": "266",
+    "Liberia": "231",
+    "Libya": "218",
+    "Madagascar": "261",
+    "Malawi": "265",
+    "Mali": "223",
+    "Mauritania": "222",
+    "Mauritius": "230",
+    "Morocco": "212",
+    "Mozambique": "258",
+    "Namibia": "264",
+    "Niger": "227",
+    "Nigeria": "234",
+    "Rwanda": "250",
+    "Sao Tome and Principe": "239",
     "Senegal": "221",
+    "Seychelles": "248",
+    "Sierra Leone": "232",
+    "Somalia": "252",
+    "South Africa": "27",
+    "South Sudan": "211",
+    "Sudan": "249",
+    "Tanzania": "255",
+    "Togo": "228",
+    "Tunisia": "216",
+    "Uganda": "256",
+    "Zambia": "260",
+    "Zimbabwe": "263",
 }
 
 
@@ -281,16 +373,20 @@ def normalize_phone_e164(raw_phone: str, user_country: str = None) -> str:
 
     # If the caller sent a local national format, prefix the country dial code.
     if cleaned.startswith("0"):
-        cleaned = cleaned[1:]
+        cleaned = cleaned.lstrip("0")
         dial_code = COUNTRY_DIAL_CODES.get(user_country or "")
-        if not dial_code:
-            raise ValueError(
-                f"Cannot determine country code for phone normalization — "
-                f"user country '{user_country}' not in COUNTRY_DIAL_CODES"
-            )
-        return dial_code + cleaned
+        if dial_code:
+            return dial_code + cleaned
+        if len(cleaned) >= 8:
+            return cleaned
 
-    return cleaned
+    if len(cleaned) >= 8:
+        return cleaned
+
+    raise ValueError(
+        "Cannot determine phone normalization for the provided number. "
+        "Enter a valid mobile money number for your country."
+    )
 
 async def pawapay_initiate_deposit(
     deposit_id: str,
@@ -377,7 +473,22 @@ async def pawapay_check_deposit(deposit_id: str) -> Optional[Dict]:
             print(f"PawaPay check error: {e}")
             return None
 
-def get_country_correspondents(country: str) -> Dict[str, str]:
+async def get_pawapay_country_correspondents(country: str) -> Dict[str, str]:
+    """Return available PawaPay correspondents for the requested country."""
+    if not country:
+        return {}
+
+    await get_pawapay_active_configuration()
+    normalized_country = _normalize_country_name(country)
+    country_map = _active_config_cache.get("country_map") or {}
+
+    if normalized_country in country_map:
+        return country_map[normalized_country]
+
+    for key, providers in country_map.items():
+        if normalized_country == key or normalized_country in key or key in normalized_country:
+            return providers
+
     return COUNTRY_CORRESPONDENT_MAP.get(country, {})
 
 
