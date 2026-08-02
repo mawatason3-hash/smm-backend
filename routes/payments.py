@@ -104,9 +104,16 @@ async def initialize_paystack(
     
     print(f"→ Paystack initialization: email={current_user.email}, amount=${data.amount}, ref={reference}")
 
-    paystack_currency = "USD"
-    exchange_rate = 1.0
-    amount_local = data.amount
+    paystack_currency = settings.PAYSTACK_CURRENCY.strip().upper() if settings.PAYSTACK_CURRENCY else "KES"
+    if paystack_currency != "USD":
+        exchange_rate = await get_exchange_rate("USD", paystack_currency)
+        if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
+            amount_local = int(round(data.amount * exchange_rate))
+        else:
+            amount_local = round(data.amount * exchange_rate, 2)
+    else:
+        exchange_rate = 1.0
+        amount_local = data.amount
 
     result = await paystack_initialize_transaction(
         email=current_user.email,
@@ -178,9 +185,9 @@ async def initialize_paystack(
         "amount_local": amount_local,
         "exchange_rate": exchange_rate,
         "display_text": (
-            f"You will be charged approximately {amount_local} {currency_local}"
-            if paystack_currency and paystack_currency != "USD"
-            else "You will be charged in your Paystack account currency"
+            f"You will be charged ${data.amount} USD (converted to {amount_local} {currency_local})"
+            if paystack_currency != "USD"
+            else f"You will be charged ${data.amount} USD"
         ),
     }
 
@@ -197,15 +204,22 @@ async def preview_paystack_conversion(
     if data.payment_method and data.payment_method != "paystack":
         raise HTTPException(status_code=400, detail="Invalid payment method")
 
-    paystack_currency = "USD"
-    exchange_rate = 1.0
-    amount_local = data.amount
+    paystack_currency = settings.PAYSTACK_CURRENCY.strip().upper() if settings.PAYSTACK_CURRENCY else "KES"
+    if paystack_currency != "USD":
+        exchange_rate = await get_exchange_rate("USD", paystack_currency)
+        if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
+            amount_local = int(round(data.amount * exchange_rate))
+        else:
+            amount_local = round(data.amount * exchange_rate, 2)
+    else:
+        exchange_rate = 1.0
+        amount_local = data.amount
 
     currency_local = paystack_currency
     display_text = (
-        f"You will be charged {amount_local} {currency_local}"
-        if paystack_currency == "USD"
-        else f"You will be charged approximately {amount_local} {currency_local}"
+        f"You will be charged ${data.amount} USD (converted to {amount_local} {currency_local})"
+        if paystack_currency != "USD"
+        else f"You will be charged ${data.amount} USD"
     )
 
     return {

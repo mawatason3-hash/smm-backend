@@ -22,6 +22,13 @@ async def paystack_initialize_transaction(
     amount_local = amount_usd
     exchange_rate = 1.0
 
+    if paystack_currency != "USD":
+        exchange_rate = await get_exchange_rate("USD", paystack_currency)
+        if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
+            amount_local = int(round(amount_usd * exchange_rate))
+        else:
+            amount_local = round(amount_usd * exchange_rate, 2)
+
     zero_decimal_currencies = {"BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "VUV", "VND", "XAF", "XOF", "XPF", "TZS"}
     if paystack_currency and paystack_currency in zero_decimal_currencies:
         amount_minor = int(round(amount_local))
