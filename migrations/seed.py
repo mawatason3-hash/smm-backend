@@ -126,5 +126,5 @@ async def seed():
         print("   Admin: admin@boastlib.com / Admin123!")
         print("   Change the admin password after first login!")
 
-if __name__ == "__main__":
+if __name__ == "__main__":b b                 
     asyncio.run(seed())

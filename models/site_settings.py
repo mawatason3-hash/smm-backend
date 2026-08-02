@@ -29,7 +29,7 @@ class SiteSettings(Base):
     liberia_orange_number = Column(String(50), default="")
     whatsapp_support = Column(String(50), default="+250792405593")
     telegram_support = Column(String(100), default="https://t.me/boastlib_support")
-    manual_payment_instructions = Column(Text, default="Send the amount to the number above and submit the transaction ID from your SMS receipt.")
-    manual_payment_time = Column(String(50), default="1-2 hours")
+    manual_payment_instructions = Column(Text, default="Send the amount to the number above and submit the transaction ID from your SMS receipt. Note: you will see USD on the site; the actual charge may be in local currency (KES) depending on the payment provider.")
+    manual_payment_time = Column(String(50), default="4-10 mins")
 
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -14,6 +14,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from decimal import Decimal
 import uuid
+from services.notification_service import send_telegram_message
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 
@@ -63,7 +64,21 @@ async def submit_manual_payment(
     db.add(payment)
     await db.commit()
     await db.refresh(payment)
-    
+
+    # Try to notify admin via Telegram if configured
+    try:
+        message = (
+            f"New manual payment request:\n"
+            f"User: {current_user.full_name} <{current_user.email}>\n"
+            f"Country: {current_user.country}\n"
+            f"Amount: ${payment.amount}\n"
+            f"Phone: {payment.phone_used}\n"
+            f"Network: {payment.network}"
+        )
+        await send_telegram_message(message)
+    except Exception:
+        pass
+
     return {
         "id": str(payment.id),
         "message": (
@@ -284,6 +299,37 @@ async def approve_manual_payment(
     await db.commit()
     
     return {"message": "Approved and balance credited"}
+
+@admin_router.post("/manual-payments/{payment_id}/notify")
+async def notify_manual_payment(
+    payment_id: str,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(ManualPayment).where(ManualPayment.id == payment_id))
+    payment = result.scalar_one_or_none()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+
+    user_result = await db.execute(select(User).where(User.id == payment.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    message = (
+        f"Manual payment request reminder:\n"
+        f"User: {user.full_name} <{user.email}>\n"
+        f"Country: {user.country}\n"
+        f"Amount: ${payment.amount}\n"
+        f"Phone: {payment.phone_used}\n"
+        f"Network: {payment.network}\n"
+        f"Status: {payment.status}"
+    )
+    success = await send_telegram_message(message)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send notification. Check Telegram settings.")
+
+    return {"message": "Notification sent to admin Telegram."}
 
 @admin_router.post("/manual-payments/{payment_id}/reject")
 async def reject_manual_payment(
