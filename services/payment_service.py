@@ -14,11 +14,26 @@ async def paystack_initialize_transaction(
     amount_usd: float,
     reference: str,
     callback_url: str,
-    metadata: Optional[Dict] = None
+    metadata: Optional[Dict] = None,
+    paystack_currency: Optional[str] = None
 ) -> Optional[Dict]:
-    """Initialize a Paystack transaction. Amount in USD converted to cents"""
-    # Paystack API expects amount in the minor unit (cents for USD)
-    amount_cents = int(amount_usd * 100)
+    """Initialize a Paystack transaction. Amount in USD converted to Paystack account currency."""
+    paystack_currency = paystack_currency or getattr(settings, "PAYSTACK_CURRENCY", "USD") or "USD"
+    amount_local = amount_usd
+    exchange_rate = 1.0
+
+    if paystack_currency != "USD":
+        exchange_rate = await get_exchange_rate("USD", paystack_currency)
+        if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
+            amount_local = int(round(amount_usd * exchange_rate))
+        else:
+            amount_local = round(amount_usd * exchange_rate, 2)
+
+    zero_decimal_currencies = {"BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "VUV", "VND", "XAF", "XOF", "XPF", "TZS"}
+    if paystack_currency in zero_decimal_currencies:
+        amount_minor = int(round(amount_local))
+    else:
+        amount_minor = int(round(amount_local * 100))
 
     headers = {
         "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
@@ -26,8 +41,8 @@ async def paystack_initialize_transaction(
     }
     payload = {
         "email": email,
-        "amount": amount_cents,
-        "currency": "USD",
+        "amount": amount_minor,
+        "currency": paystack_currency,
         "reference": reference,
         "callback_url": callback_url,
         "metadata": metadata or {}
@@ -36,7 +51,7 @@ async def paystack_initialize_transaction(
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             print(f"→ Paystack POST {PAYSTACK_BASE}/transaction/initialize")
-            print(f"  Email: {email}, Amount: ${amount_usd} (cents: {amount_cents}), Ref: {reference}")
+            print(f"  Email: {email}, Amount USD: ${amount_usd}, Local: {amount_local} {paystack_currency} (minor units: {amount_minor}), Ref: {reference}")
             
             resp = await client.post(
                 f"{PAYSTACK_BASE}/transaction/initialize",
@@ -91,6 +106,125 @@ def verify_paystack_webhook(payload: bytes, signature: str) -> bool:
 # ─── PAWAPAY (Mobile Money) ───────────────────────────────────────────────────
 
 PAWAPAY_BASE = settings.PAWAPAY_BASE_URL
+
+# ─── PAWAPAY Configuration Cache ──────────────────────────────────────────────
+_active_config_cache = {"data": None, "fetched_at": None}
+
+async def get_pawapay_active_configuration() -> Dict[str, str]:
+    """
+    Fetches the list of correspondents and their currencies from PawaPay's
+    active configuration API. Cached for 1 hour since this rarely changes.
+    Returns: {"MTN_MOMO_RWA": "RWF", "AIRTEL_OAPI_ZMB": "ZMW", ...}
+    """
+    from datetime import datetime, timezone, timedelta
+
+    now = datetime.now(timezone.utc)
+    if (_active_config_cache["data"] is not None and
+        _active_config_cache["fetched_at"] is not None and
+        now - _active_config_cache["fetched_at"] < timedelta(hours=1)):
+        print(f"✓ Using cached PawaPay configuration (expires in {(timedelta(hours=1) - (now - _active_config_cache['fetched_at'])).seconds // 60} min)")
+        return _active_config_cache["data"]
+
+    headers = {"Authorization": f"Bearer {settings.PAWAPAY_API_KEY}"}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            print(f"→ Fetching PawaPay active configuration from {PAWAPAY_BASE}/v2/active-conf?operationType=DEPOSIT")
+            resp = await client.get(
+                f"{PAWAPAY_BASE}/v2/active-conf?operationType=DEPOSIT",
+                headers=headers
+            )
+            
+            if resp.status_code not in (200, 201):
+                print(f"✗ PawaPay active-conf error {resp.status_code}: {resp.text}")
+                return {}
+
+            data = resp.json()
+            mapping = {}
+            
+            for country in data.get("countries", []):
+                for provider in country.get("providers", []):
+                    provider_code = provider.get("provider")
+                    if not provider_code:
+                        continue
+                    for currency_info in provider.get("currencies", []):
+                        currency = currency_info.get("currency")
+                        operation_types = currency_info.get("operationTypes", {})
+                        if currency and operation_types.get("DEPOSIT") is not None:
+                            mapping[provider_code] = currency
+                            print(f"  ✓ {provider_code} → {currency}")
+                            break
+            
+            _active_config_cache["data"] = mapping
+            _active_config_cache["fetched_at"] = now
+            print(f"✓ PawaPay configuration fetched: {len(mapping)} providers")
+            return mapping
+        except Exception as e:
+            print(f"✗ Failed to fetch PawaPay configuration: {type(e).__name__}: {e}")
+            return {}
+
+async def get_exchange_rate(from_currency: str, to_currency: str) -> float:
+    """
+    Fetches real-time exchange rate from exchangerate-api.com.
+    Falls back to cached rate if API fails.
+    """
+    if from_currency == to_currency:
+        return 1.0
+    
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            print(f"→ Fetching exchange rate: {from_currency} → {to_currency}")
+            resp = await client.get(f"https://api.exchangerate-api.com/v4/latest/{from_currency}")
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                rate = data["rates"].get(to_currency)
+                if rate:
+                    print(f"  1 {from_currency} = {rate} {to_currency}")
+                    return float(rate)
+        except Exception as e:
+            print(f"✗ Exchange rate API error: {type(e).__name__}: {e}")
+    
+    # Fallback rates if API unavailable (will be overridden on retry)
+    fallback_rates = {
+        ("USD", "RWF"): 1325.0,
+        ("USD", "UGX"): 3750.0,
+        ("USD", "TZS"): 2550.0,
+        ("USD", "GHS"): 14.2,
+        ("USD", "LRD"): 60.0,
+        ("USD", "ZMW"): 25.5,
+        ("USD", "MZN"): 63.5,
+        ("USD", "XAF"): 615.0,
+        ("USD", "XOF"): 615.0,
+        ("USD", "SEN"): 615.0,
+    }
+    fallback = fallback_rates.get((from_currency, to_currency), 1.0)
+    print(f"⚠ Using fallback rate for {from_currency}→{to_currency}: {fallback}")
+    return fallback
+
+# ─── PAWAPAY Mobile Money Currency Defaults (Fallback) ──────────────────────
+# This is only used as fallback if PawaPay API fetch fails
+CORRESPONDENT_CURRENCY_MAP = {
+    "MTN_MOMO_RWA": "RWF",
+    "AIRTEL_OAPI_RWA": "RWF",
+    "MTN_MOMO_UGA": "UGX",
+    "AIRTEL_OAPI_UGA": "UGX",
+    "VODACOM_TZA": "TZS",
+    "AIRTEL_OAPI_TZA": "TZS",
+    "MTN_MOMO_GHA": "GHS",
+    "VODAFONE_GHA": "GHS",
+    "LONESTAR_LBR": "LRD",
+    "ORANGE_LBR": "LRD",
+    "MTN_MOMO_ZMB": "ZMW",
+    "AIRTEL_OAPI_ZMB": "ZMW",
+    "VODACOM_MOZ": "MZN",
+    "AIRTEL_OAPI_MOZ": "MZN",
+    "MTN_MOMO_CMR": "XAF",
+    "ORANGE_CMR": "XAF",
+    "MTN_MOMO_CIV": "XOF",
+    "ORANGE_CIV": "XOF",
+    "ORANGE_SEN": "XOF",
+    "FREE_SEN": "XOF",
+}
 
 # Mobile money country → correspondent mapping
 COUNTRY_CORRESPONDENT_MAP = {
@@ -172,13 +306,14 @@ async def pawapay_initiate_deposit(
         "depositId": deposit_id,
         "amount": str(amount),
         "currency": currency,
-        "correspondent": correspondent,
         "payer": {
-            "type": "MSISDN",
-            "address": {"value": phone_number}
+            "type": "MMO",
+            "accountDetails": {
+                "phoneNumber": phone_number,
+                "provider": correspondent
+            }
         },
-        "customerTimestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "statementDescription": description
+        "customerMessage": description
     }
 
     async with httpx.AsyncClient(timeout=30.0) as client:

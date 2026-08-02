@@ -16,6 +16,9 @@ from services.payment_service import (
     get_country_correspondents,
     COUNTRY_CORRESPONDENT_MAP,
     normalize_phone_e164,
+    get_pawapay_active_configuration,
+    get_exchange_rate,
+    CORRESPONDENT_CURRENCY_MAP,
 )
 from config import settings
 from decimal import Decimal
@@ -101,12 +104,24 @@ async def initialize_paystack(
     
     print(f"→ Paystack initialization: email={current_user.email}, amount=${data.amount}, ref={reference}")
 
+    paystack_currency = settings.PAYSTACK_CURRENCY or "USD"
+    if paystack_currency != "USD":
+        exchange_rate = await get_exchange_rate("USD", paystack_currency)
+        if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
+            amount_local = int(round(data.amount * exchange_rate))
+        else:
+            amount_local = round(data.amount * exchange_rate, 2)
+    else:
+        exchange_rate = 1.0
+        amount_local = data.amount
+
     result = await paystack_initialize_transaction(
         email=current_user.email,
         amount_usd=data.amount,
         reference=reference,
         callback_url=callback_url,
-        metadata={"user_id": str(current_user.id), "amount": data.amount}
+        metadata={"user_id": str(current_user.id), "amount_usd": data.amount},
+        paystack_currency=paystack_currency
     )
 
     if not result:
@@ -126,15 +141,68 @@ async def initialize_paystack(
         payment_reference=reference,
         payment_country=current_user.country,
         status="pending",
-        description=f"Wallet deposit via Paystack - ${data.amount}"
+        description=(
+            f"Wallet deposit via Paystack - ${data.amount} USD ({amount_local} {paystack_currency})"
+            if paystack_currency != "USD"
+            else f"Wallet deposit via Paystack - ${data.amount}"
+        ),
+        metadata_={
+            "paystack_currency": paystack_currency,
+            "amount_usd": data.amount,
+            "amount_local": amount_local,
+            "currency_local": paystack_currency,
+            "exchange_rate": exchange_rate,
+        }
     )
     db.add(transaction)
     await db.commit()
 
-    return {
+    response_payload = {
         "authorization_url": result["authorization_url"],
         "access_code": result["access_code"],
-        "reference": reference
+        "reference": reference,
+        "amount_usd": data.amount,
+        "currency_local": paystack_currency,
+        "amount_local": amount_local,
+        "exchange_rate": exchange_rate,
+    }
+    if paystack_currency != "USD":
+        response_payload["display_text"] = f"You will be charged approximately {amount_local} {paystack_currency}"
+
+    return response_payload
+
+@router.post("/paystack/preview")
+async def preview_paystack_conversion(
+    data: InitiatePaymentRequest,
+    current_user: User = Depends(get_current_user)
+):
+    if data.amount < 1:
+        raise HTTPException(status_code=400, detail="Minimum deposit is $1")
+
+    if data.payment_method and data.payment_method != "paystack":
+        raise HTTPException(status_code=400, detail="Invalid payment method")
+
+    paystack_currency = settings.PAYSTACK_CURRENCY or "USD"
+    if paystack_currency != "USD":
+        exchange_rate = await get_exchange_rate("USD", paystack_currency)
+        if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
+            amount_local = int(round(data.amount * exchange_rate))
+        else:
+            amount_local = round(data.amount * exchange_rate, 2)
+    else:
+        exchange_rate = 1.0
+        amount_local = data.amount
+
+    return {
+        "amount_usd": data.amount,
+        "amount_local": amount_local,
+        "currency_local": paystack_currency,
+        "exchange_rate": exchange_rate,
+        "display_text": (
+            f"You will be charged approximately {amount_local} {paystack_currency}"
+            if paystack_currency != "USD"
+            else f"You will be charged {data.amount} USD"
+        )
     }
 
 @router.get("/paystack/verify/{reference}")
@@ -248,12 +316,59 @@ async def initiate_pawapay(
     correspondent = data.payment_method.replace("pawapay_", "")
     print(f"✓ Payment method: {data.payment_method} → correspondent: {correspondent}")
     
+    # ──────────── CURRENCY CONVERSION ────────────────────────────────────────
+    # Fetch PawaPay's active configuration to get the real currency for this correspondent
+    active_config = await get_pawapay_active_configuration()
+    local_currency = active_config.get(correspondent)
+
+    if not local_currency:
+        if active_config:
+            print(f"✗ Correspondent {correspondent} not found in active configuration")
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Mobile money provider {correspondent} is not currently configured on our payment account. "
+                    f"Please try a different payment method."
+                )
+            )
+        local_currency = CORRESPONDENT_CURRENCY_MAP.get(correspondent)
+        if local_currency:
+            print(f"⚠ Using fallback currency for {correspondent}: {local_currency}")
+
+    if not local_currency:
+        print(f"✗ Correspondent {correspondent} currency unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Payment provider {correspondent} is not currently active. "
+                f"Please try another payment method."
+            )
+        )
+    
+    print(f"✓ Correspondent {correspondent} currency: {local_currency}")
+    
+    # Convert USD to local currency if needed
+    if local_currency != "USD":
+        exchange_rate = await get_exchange_rate("USD", local_currency)
+        # For currencies without decimal (RWF, UGX, TZS, XAF, XOF), round to 0 decimals
+        if local_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
+            local_amount = int(round(data.amount * exchange_rate))
+        else:
+            local_amount = round(data.amount * exchange_rate, 2)
+        print(f"✓ Converted ${data.amount} USD → {local_amount} {local_currency} (rate: {exchange_rate})")
+    else:
+        exchange_rate = 1.0
+        local_amount = data.amount
+        print(f"✓ Using USD directly: {local_amount}")
+    
+    # ──────────── END CURRENCY CONVERSION ────────────────────────────────────
+    
     deposit_id = str(uuid.uuid4())
 
     result = await pawapay_initiate_deposit(
         deposit_id=deposit_id,
-        amount=data.amount,
-        currency="USD",
+        amount=local_amount,
+        currency=local_currency,
         correspondent=correspondent,
         phone_number=normalized_phone,
         description="BOASTLIB TOPUP"
@@ -262,20 +377,24 @@ async def initiate_pawapay(
 
     if not result:
         print(f"✗ PawaPay returned None or empty result")
-        raise HTTPException(status_code=400, detail="Could not initiate mobile money payment")
+        raise HTTPException(
+            status_code=503, 
+            detail=f"Mobile money service not available for {current_user.country} {correspondent} at this time. Please try another payment method."
+        )
 
     # Create pending transaction
+    # Store both USD (authoritative) and local currency for auditing
     transaction = Transaction(
         user_id=current_user.id,
         type="deposit",
-        amount=data.amount,
+        amount=data.amount,  # USD — this is what gets credited to account
         balance_before=float(current_user.balance),
         balance_after=float(current_user.balance),
         payment_method=f"pawapay_{correspondent}",
         payment_reference=deposit_id,
         payment_country=current_user.country,
         status="pending",
-        description=f"Mobile money deposit - ${data.amount}"
+        description=f"Mobile money deposit - ${data.amount} USD ({local_amount} {local_currency})"
     )
     db.add(transaction)
     await db.commit()
@@ -283,7 +402,57 @@ async def initiate_pawapay(
     return {
         "deposit_id": deposit_id,
         "status": result.get("status", "PENDING"),
+        "amount_usd": data.amount,
+        "amount_local": local_amount,
+        "currency_local": local_currency,
+        "exchange_rate": exchange_rate,
         "message": "Check your phone for the payment prompt"
+    }
+
+@router.post("/pawapay/preview")
+async def preview_pawapay_conversion(
+    data: InitiatePaymentRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Preview the local currency amount before confirming payment"""
+    if not data.payment_method or not data.payment_method.startswith("pawapay_"):
+        raise HTTPException(status_code=400, detail="Invalid payment method")
+    
+    if not current_user.country:
+        raise HTTPException(status_code=400, detail="Country not set")
+    
+    correspondent = data.payment_method.replace("pawapay_", "")
+    
+    # Get currency for this correspondent
+    active_config = await get_pawapay_active_configuration()
+    local_currency = active_config.get(correspondent)
+    if not local_currency:
+        if active_config:
+            raise HTTPException(status_code=400, detail=f"Correspondent {correspondent} not found")
+        local_currency = CORRESPONDENT_CURRENCY_MAP.get(correspondent)
+        if local_currency:
+            print(f"⚠ Using fallback currency for preview of {correspondent}: {local_currency}")
+
+    if not local_currency:
+        raise HTTPException(status_code=400, detail=f"Correspondent {correspondent} not found")
+    
+    # Get exchange rate
+    if local_currency != "USD":
+        exchange_rate = await get_exchange_rate("USD", local_currency)
+        if local_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
+            local_amount = int(round(data.amount * exchange_rate))
+        else:
+            local_amount = round(data.amount * exchange_rate, 2)
+    else:
+        exchange_rate = 1.0
+        local_amount = data.amount
+    
+    return {
+        "amount_usd": data.amount,
+        "amount_local": local_amount,
+        "currency_local": local_currency,
+        "exchange_rate": exchange_rate,
+        "display_text": f"You will be charged approximately {local_amount} {local_currency}"
     }
 
 @router.post("/pawapay/webhook")
