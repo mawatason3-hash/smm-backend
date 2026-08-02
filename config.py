@@ -36,7 +36,8 @@ class Settings(BaseSettings):
     # Paystack (card payments)
     PAYSTACK_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = ""
-    PAYSTACK_CURRENCY: str = "USD"
+    # Optional: leave blank to use the Paystack merchant account default currency.
+    PAYSTACK_CURRENCY: str = ""
 
     # Dodo Payments
     DODO_PAYMENTS_API_KEY: str = ""

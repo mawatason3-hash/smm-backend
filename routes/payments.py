@@ -104,8 +104,11 @@ async def initialize_paystack(
     
     print(f"→ Paystack initialization: email={current_user.email}, amount=${data.amount}, ref={reference}")
 
-    paystack_currency = settings.PAYSTACK_CURRENCY or "USD"
-    if paystack_currency != "USD":
+    paystack_currency = settings.PAYSTACK_CURRENCY.strip().upper() if settings.PAYSTACK_CURRENCY else ""
+    if not paystack_currency:
+        print("→ No PAYSTACK_CURRENCY configured; using Paystack account default currency")
+
+    if paystack_currency and paystack_currency != "USD":
         exchange_rate = await get_exchange_rate("USD", paystack_currency)
         if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
             amount_local = int(round(data.amount * exchange_rate))
@@ -126,9 +129,9 @@ async def initialize_paystack(
 
     if isinstance(result, dict) and result.get("error"):
         error_message = str(result.get("error"))
-        if paystack_currency != "USD" and "currency not supported" in error_message.lower():
-            print(f"⚠ Paystack currency {paystack_currency} unsupported, retrying with USD")
-            paystack_currency = "USD"
+        if paystack_currency and "currency not supported" in error_message.lower():
+            print(f"⚠ Paystack currency {paystack_currency} unsupported, retrying without currency field")
+            paystack_currency = ""
             exchange_rate = 1.0
             amount_local = data.amount
             result = await paystack_initialize_transaction(
@@ -148,6 +151,7 @@ async def initialize_paystack(
     print(f"✓ Paystack authorization_url: {result.get('authorization_url', 'N/A')[:50]}...")
 
     # Create pending transaction
+    currency_local = paystack_currency or ""
     transaction = Transaction(
         user_id=current_user.id,
         type="deposit",
@@ -159,32 +163,36 @@ async def initialize_paystack(
         payment_country=current_user.country,
         status="pending",
         description=(
-            f"Wallet deposit via Paystack - ${data.amount} USD ({amount_local} {paystack_currency})"
-            if paystack_currency != "USD"
-            else f"Wallet deposit via Paystack - ${data.amount}"
+            f"Wallet deposit via Paystack - ${data.amount} USD ({amount_local} {currency_local})"
+            if paystack_currency and paystack_currency != "USD"
+            else f"Wallet deposit via Paystack - ${data.amount} in Paystack account currency"
         ),
         metadata_={
             "paystack_currency": paystack_currency,
             "amount_usd": data.amount,
             "amount_local": amount_local,
-            "currency_local": paystack_currency,
+            "currency_local": currency_local,
             "exchange_rate": exchange_rate,
         }
     )
     db.add(transaction)
     await db.commit()
 
+    currency_local = paystack_currency or ""
     response_payload = {
         "authorization_url": result["authorization_url"],
         "access_code": result["access_code"],
         "reference": reference,
         "amount_usd": data.amount,
-        "currency_local": paystack_currency,
+        "currency_local": currency_local,
         "amount_local": amount_local,
         "exchange_rate": exchange_rate,
+        "display_text": (
+            f"You will be charged approximately {amount_local} {currency_local}"
+            if paystack_currency and paystack_currency != "USD"
+            else "You will be charged in your Paystack account currency"
+        ),
     }
-    if paystack_currency != "USD":
-        response_payload["display_text"] = f"You will be charged approximately {amount_local} {paystack_currency}"
 
     return response_payload
 
@@ -199,8 +207,8 @@ async def preview_paystack_conversion(
     if data.payment_method and data.payment_method != "paystack":
         raise HTTPException(status_code=400, detail="Invalid payment method")
 
-    paystack_currency = settings.PAYSTACK_CURRENCY or "USD"
-    if paystack_currency != "USD":
+    paystack_currency = settings.PAYSTACK_CURRENCY.strip().upper() if settings.PAYSTACK_CURRENCY else ""
+    if paystack_currency and paystack_currency != "USD":
         exchange_rate = await get_exchange_rate("USD", paystack_currency)
         if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
             amount_local = int(round(data.amount * exchange_rate))
@@ -210,16 +218,19 @@ async def preview_paystack_conversion(
         exchange_rate = 1.0
         amount_local = data.amount
 
+    currency_local = paystack_currency or ""
+    display_text = (
+        f"You will be charged approximately {amount_local} {currency_local}"
+        if paystack_currency and paystack_currency != "USD"
+        else "You will be charged in your Paystack account currency"
+    )
+
     return {
         "amount_usd": data.amount,
         "amount_local": amount_local,
-        "currency_local": paystack_currency,
+        "currency_local": currency_local,
         "exchange_rate": exchange_rate,
-        "display_text": (
-            f"You will be charged approximately {amount_local} {paystack_currency}"
-            if paystack_currency != "USD"
-            else f"You will be charged {data.amount} USD"
-        )
+        "display_text": display_text,
     }
 
 @router.get("/paystack/verify/{reference}")

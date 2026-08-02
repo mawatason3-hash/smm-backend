@@ -18,19 +18,22 @@ async def paystack_initialize_transaction(
     paystack_currency: Optional[str] = None
 ) -> Optional[Dict]:
     """Initialize a Paystack transaction. Amount in USD converted to Paystack account currency."""
-    paystack_currency = paystack_currency or getattr(settings, "PAYSTACK_CURRENCY", "USD") or "USD"
+    paystack_currency = (paystack_currency or getattr(settings, "PAYSTACK_CURRENCY", "") or "").strip().upper()
     amount_local = amount_usd
     exchange_rate = 1.0
 
-    if paystack_currency != "USD":
-        exchange_rate = await get_exchange_rate("USD", paystack_currency)
-        if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
-            amount_local = int(round(amount_usd * exchange_rate))
-        else:
-            amount_local = round(amount_usd * exchange_rate, 2)
+    if paystack_currency:
+        if paystack_currency != "USD":
+            exchange_rate = await get_exchange_rate("USD", paystack_currency)
+            if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
+                amount_local = int(round(amount_usd * exchange_rate))
+            else:
+                amount_local = round(amount_usd * exchange_rate, 2)
+    else:
+        print("→ Paystack initialize: no explicit currency configured, using merchant account default currency")
 
     zero_decimal_currencies = {"BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "VUV", "VND", "XAF", "XOF", "XPF", "TZS"}
-    if paystack_currency in zero_decimal_currencies:
+    if paystack_currency and paystack_currency in zero_decimal_currencies:
         amount_minor = int(round(amount_local))
     else:
         amount_minor = int(round(amount_local * 100))
@@ -42,11 +45,12 @@ async def paystack_initialize_transaction(
     payload = {
         "email": email,
         "amount": amount_minor,
-        "currency": paystack_currency,
         "reference": reference,
         "callback_url": callback_url,
         "metadata": metadata or {}
     }
+    if paystack_currency:
+        payload["currency"] = paystack_currency
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
