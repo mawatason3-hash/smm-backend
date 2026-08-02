@@ -14,7 +14,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from decimal import Decimal
 import uuid
-from services.notification_service import send_telegram_message, send_whatsapp_message
+from services.notification_service import send_telegram_message
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 
@@ -68,7 +68,7 @@ async def submit_manual_payment(
     await db.commit()
     await db.refresh(payment)
 
-    # Try to notify admin via Telegram and WhatsApp if configured
+    # Try to notify admin via Telegram if configured
     message = (
         f"New manual payment request:\n"
         f"User: {current_user.full_name} <{current_user.email}>\n"
@@ -83,17 +83,12 @@ async def submit_manual_payment(
     except Exception:
         pass
 
-    try:
-        await send_whatsapp_message(message)
-    except Exception:
-        pass
-
     return {
         "id": str(payment.id),
         "message": (
             "Submitted! Admin will credit within 4-10 minutes"
             if current_user.country == "Liberia"
-            else "Submitted! Admin will review your request and send country-specific payment instructions. You can also message us on WhatsApp or Telegram to speed things up."
+            else "Submitted! Admin will review your request and send country-specific payment instructions. You can also message us on Telegram to speed things up."
         )
     }
 
@@ -138,17 +133,15 @@ async def get_manual_payment_settings(
             return {
                 "mtn_number": "0555166954",
                 "orange_number": "",
-                "whatsapp": "+250792405593",
                 "telegram": "https://t.me/boastlib_support",
-                "instructions": "Send the amount to the number above and submit your proof. Transaction ID is optional — you can also message our admin on WhatsApp/Telegram for help.",
+                "instructions": "Send the amount to the number above and submit your proof. Transaction ID is optional — you can also message our admin on Telegram for help.",
                 "processing_time": "15-30 mins"
             }
         return {
             "mtn_number": "",
             "orange_number": "",
-            "whatsapp": "+250792405593",
             "telegram": "https://t.me/boastlib_support",
-            "instructions": "Submit your amount and phone number. Our admin will review and send the correct payment method for your country; you can also message us on WhatsApp/Telegram for faster help.",
+            "instructions": "Submit your amount and phone number. Our admin will review and send the correct payment method for your country; you can also message us on Telegram for faster help.",
             "processing_time": "15-30 mins"
         }
     
@@ -156,17 +149,15 @@ async def get_manual_payment_settings(
         return {
             "mtn_number": settings.liberia_mtn_number,
             "orange_number": settings.liberia_orange_number,
-            "whatsapp": settings.whatsapp_support,
             "telegram": settings.telegram_support,
-            "instructions": (settings.manual_payment_instructions or "Send the amount to the number above and submit your proof. Transaction ID is optional — you can also message our admin on WhatsApp/Telegram for help."),
+            "instructions": (settings.manual_payment_instructions or "Send the amount to the number above and submit your proof. Transaction ID is optional — you can also message our admin on Telegram for help."),
             "processing_time": settings.manual_payment_time
         }
     return {
         "mtn_number": "",
         "orange_number": "",
-        "whatsapp": settings.whatsapp_support,
         "telegram": settings.telegram_support,
-        "instructions": (settings.manual_payment_instructions or "Submit your amount and phone number. Our admin will review and send the correct payment method for your country; you can also message us on WhatsApp/Telegram for faster help."),
+        "instructions": (settings.manual_payment_instructions or "Submit your amount and phone number. Our admin will review and send the correct payment method for your country; you can also message us on Telegram for faster help."),
         "processing_time": settings.manual_payment_time
     }
 
@@ -336,18 +327,11 @@ async def notify_manual_payment(
     )
 
     telegram_success = await send_telegram_message(message)
-    whatsapp_success = await send_whatsapp_message(message)
 
-    if not telegram_success and not whatsapp_success:
-        raise HTTPException(status_code=500, detail="Failed to send notification. Check Telegram/WhatsApp settings.")
+    if not telegram_success:
+        raise HTTPException(status_code=500, detail="Failed to send notification. Check Telegram settings.")
 
-    if telegram_success and whatsapp_success:
-        return {"message": "Notification sent to admin Telegram and WhatsApp."}
-
-    if telegram_success:
-        return {"message": "Notification sent to admin Telegram."}
-
-    return {"message": "Notification sent to admin WhatsApp."}
+    return {"message": "Notification sent to admin Telegram."}
 
 @admin_router.post("/manual-payments/{payment_id}/reject")
 async def reject_manual_payment(
