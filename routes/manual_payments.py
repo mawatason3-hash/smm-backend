@@ -10,6 +10,7 @@ from models.site_settings import SiteSettings
 from middleware.auth_middleware import get_current_user, get_current_admin
 from schemas.payment import InitiatePaymentRequest
 from pydantic import BaseModel
+from typing import Optional
 from datetime import datetime, timezone
 from decimal import Decimal
 import uuid
@@ -18,13 +19,13 @@ router = APIRouter(prefix="/api/payments", tags=["payments"])
 
 class ManualPaymentRequest(BaseModel):
     amount: float
-    network: str
-    phone_used: str
-    transaction_id: str
-    proof_note: str = None
+    network: Optional[str] = None
+    phone_used: Optional[str] = None
+    transaction_id: Optional[str] = None
+    proof_note: Optional[str] = None
 
 class AdminApproveRequest(BaseModel):
-    admin_note: str = None
+    admin_note: Optional[str] = None
 
 class AdminRejectRequest(BaseModel):
     admin_note: str
@@ -38,23 +39,23 @@ async def submit_manual_payment(
     if data.amount < 1:
         raise HTTPException(status_code=400, detail="Minimum deposit is $1")
     
-    if not data.network or not data.network.strip():
-        raise HTTPException(status_code=400, detail="Network is required")
-    
-    if not data.phone_used:
-        raise HTTPException(status_code=400, detail="Phone number required")
-    
-    if not data.transaction_id:
-        raise HTTPException(status_code=400, detail="Transaction ID required")
-    
+    if current_user.country == "Liberia":
+        if not data.network or not data.network.strip():
+            raise HTTPException(status_code=400, detail="Network is required")
+        if not data.phone_used:
+            raise HTTPException(status_code=400, detail="Phone number required")
+    else:
+        if not data.phone_used:
+            raise HTTPException(status_code=400, detail="Contact phone number required for manual payment request")
+
     payment = ManualPayment(
         id=uuid.uuid4(),
         user_id=current_user.id,
         amount=Decimal(str(data.amount)),
         currency="USD",
-        network=data.network,
-        phone_used=data.phone_used,
-        transaction_id=data.transaction_id,
+        network=data.network or "OTHER",
+        phone_used=data.phone_used or "",
+        transaction_id=data.transaction_id or "",
         proof_note=data.proof_note or "",
         status="pending"
     )
@@ -65,7 +66,11 @@ async def submit_manual_payment(
     
     return {
         "id": str(payment.id),
-        "message": "Submitted! Admin will credit within 4-10 minutes"
+        "message": (
+            "Submitted! Admin will credit within 4-10 minutes"
+            if current_user.country == "Liberia"
+            else "Submitted! Admin will review your request and send country-specific payment instructions. You can also message us on WhatsApp or Telegram to speed things up."
+        )
     }
 
 @router.get("/manual/my-requests")
@@ -96,26 +101,48 @@ async def get_my_manual_payments(
     }
 
 @router.get("/manual/settings")
-async def get_manual_payment_settings(db: AsyncSession = Depends(get_db)):
+async def get_manual_payment_settings(
+    country: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(SiteSettings))
     settings = result.scalar_one_or_none()
+    is_liberia = (country or "").strip().lower() == "liberia"
     
     if not settings:
+        if is_liberia:
+            return {
+                "mtn_number": "0555166954",
+                "orange_number": "",
+                "whatsapp": "+250792405593",
+                "telegram": "https://t.me/boastlib_support",
+                "instructions": "Send the amount to the number above and submit your proof. Transaction ID is optional — you can also message our admin on WhatsApp/Telegram for help.",
+                "processing_time": "15-30 mins"
+            }
         return {
-            "mtn_number": "0555166954",
+            "mtn_number": "",
             "orange_number": "",
             "whatsapp": "+250792405593",
             "telegram": "https://t.me/boastlib_support",
-            "instructions": "Send the amount to the number above and submit the transaction ID from your SMS receipt.",
+            "instructions": "Submit your amount and phone number. Our admin will review and send the correct payment method for your country; you can also message us on WhatsApp/Telegram for faster help.",
             "processing_time": "15-30 mins"
         }
     
+    if is_liberia:
+        return {
+            "mtn_number": settings.liberia_mtn_number,
+            "orange_number": settings.liberia_orange_number,
+            "whatsapp": settings.whatsapp_support,
+            "telegram": settings.telegram_support,
+            "instructions": (settings.manual_payment_instructions or "Send the amount to the number above and submit your proof. Transaction ID is optional — you can also message our admin on WhatsApp/Telegram for help."),
+            "processing_time": settings.manual_payment_time
+        }
     return {
-        "mtn_number": settings.liberia_mtn_number,
-        "orange_number": settings.liberia_orange_number,
+        "mtn_number": "",
+        "orange_number": "",
         "whatsapp": settings.whatsapp_support,
         "telegram": settings.telegram_support,
-        "instructions": settings.manual_payment_instructions,
+        "instructions": (settings.manual_payment_instructions or "Submit your amount and phone number. Our admin will review and send the correct payment method for your country; you can also message us on WhatsApp/Telegram for faster help."),
         "processing_time": settings.manual_payment_time
     }
 
@@ -171,7 +198,8 @@ async def list_manual_payments(
                 "user": {
                     "id": str(user.id),
                     "full_name": user.full_name,
-                    "email": user.email
+                    "email": user.email,
+                    "country": user.country
                 },
                 "amount": float(payment.amount),
                 "network": payment.network,
