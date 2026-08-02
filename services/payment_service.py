@@ -18,19 +18,9 @@ async def paystack_initialize_transaction(
     paystack_currency: Optional[str] = None
 ) -> Optional[Dict]:
     """Initialize a Paystack transaction. Amount in USD converted to Paystack account currency."""
-    paystack_currency = (paystack_currency or getattr(settings, "PAYSTACK_CURRENCY", "") or "").strip().upper()
+    paystack_currency = (paystack_currency or "USD").strip().upper()
     amount_local = amount_usd
     exchange_rate = 1.0
-
-    if paystack_currency:
-        if paystack_currency != "USD":
-            exchange_rate = await get_exchange_rate("USD", paystack_currency)
-            if paystack_currency in ("RWF", "UGX", "TZS", "XAF", "XOF"):
-                amount_local = int(round(amount_usd * exchange_rate))
-            else:
-                amount_local = round(amount_usd * exchange_rate, 2)
-    else:
-        print("→ Paystack initialize: no explicit currency configured, using merchant account default currency")
 
     zero_decimal_currencies = {"BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "VUV", "VND", "XAF", "XOF", "XPF", "TZS"}
     if paystack_currency and paystack_currency in zero_decimal_currencies:
@@ -47,6 +37,7 @@ async def paystack_initialize_transaction(
         "amount": amount_minor,
         "reference": reference,
         "callback_url": callback_url,
+        "channels": ["card"],
         "metadata": metadata or {}
     }
     if paystack_currency:
