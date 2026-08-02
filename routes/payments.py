@@ -124,6 +124,22 @@ async def initialize_paystack(
         paystack_currency=paystack_currency
     )
 
+    if isinstance(result, dict) and result.get("error"):
+        error_message = str(result.get("error"))
+        if paystack_currency != "USD" and "currency not supported" in error_message.lower():
+            print(f"⚠ Paystack currency {paystack_currency} unsupported, retrying with USD")
+            paystack_currency = "USD"
+            exchange_rate = 1.0
+            amount_local = data.amount
+            result = await paystack_initialize_transaction(
+                email=current_user.email,
+                amount_usd=data.amount,
+                reference=reference,
+                callback_url=callback_url,
+                metadata={"user_id": str(current_user.id), "amount_usd": data.amount},
+                paystack_currency=paystack_currency
+            )
+
     if not result or (isinstance(result, dict) and result.get("error")):
         error_message = result.get("error") if isinstance(result, dict) else "Could not initialize payment. Please try again."
         print(f"✗ Paystack initialize failed: {error_message}")
