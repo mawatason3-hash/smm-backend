@@ -50,12 +50,6 @@ class Settings(BaseSettings):
     PAWAPAY_BASE_URL: str = "https://api.pawapay.io"
 
     # SMM Providers
-    JAP_API_KEY: str = ""
-    JAP_API_URL: str = "https://justanotherpanel.com/api/v2"
-    PEAKERR_API_KEY: str = ""
-    PEAKERR_API_URL: str = "https://peakerr.com/api/v2"
-    SMMWIZ_API_KEY: str = ""
-    SMMWIZ_API_URL: str = "https://smmwiz.com/api/v2"
     WIZSMM_API_KEY: str = ""
     WIZSMM_API_URL: str = "https://wizsmm.com/api/v2"
 

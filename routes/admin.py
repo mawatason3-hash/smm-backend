@@ -137,7 +137,7 @@ async def get_provider_balance(
     provider: str,
     admin: User = Depends(get_current_admin),
 ):
-    if provider not in {"jap", "peakerr", "smmwiz"}:
+    if provider != "wizsmm":
         raise HTTPException(status_code=400, detail="Unsupported provider")
 
     result = await check_provider_balance(provider)

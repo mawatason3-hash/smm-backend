@@ -36,7 +36,7 @@ class Service(Base):
     max_qty = Column(Integer, nullable=False, default=100000)
 
     # Provider info
-    provider = Column(String(50), nullable=True)  # jap, peakerr, smmwiz
+    provider = Column(String(50), nullable=True)  # wizsmm only
     provider_service_id = Column(String(50), nullable=True)
 
     # Speed & quality

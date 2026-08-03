@@ -38,7 +38,7 @@ async def seed():
                 currency="USD",
                 currency_symbol="$",
                 support_email="support@boastlib.com",
-                default_provider="jap"
+                default_provider="wizsmm"
             ))
             print("✅ Site settings created")
 
@@ -86,36 +86,36 @@ async def seed():
         if not existing_services:
             services = [
                 # Instagram
-                Service(platform="instagram", name="Instagram Followers — High Retention", rate_per_1k=1.20, cost_per_1k=0.80, min_qty=100, max_qty=100000, avg_speed="Instant", is_instant=True, quality_badge="High Quality", provider="jap", provider_service_id="1", refill_enabled=True, is_active=True),
-                Service(platform="instagram", name="Instagram Followers — Real & Active", rate_per_1k=2.50, cost_per_1k=1.80, min_qty=100, max_qty=50000, avg_speed="1-2 hours", is_instant=False, quality_badge="Best Seller", provider="peakerr", provider_service_id="2", refill_enabled=True, is_active=True),
-                Service(platform="instagram", name="Instagram Post Likes", rate_per_1k=0.30, cost_per_1k=0.10, min_qty=50, max_qty=500000, avg_speed="Instant", is_instant=True, provider="jap", provider_service_id="3", is_active=True),
-                Service(platform="instagram", name="Instagram Video Views", rate_per_1k=0.10, cost_per_1k=0.05, min_qty=500, max_qty=10000000, avg_speed="Instant", is_instant=True, provider="jap", provider_service_id="4", is_active=True),
-                Service(platform="instagram", name="Instagram Story Views", rate_per_1k=0.15, cost_per_1k=0.08, min_qty=100, max_qty=1000000, avg_speed="Instant", is_instant=True, provider="jap", provider_service_id="5", is_active=True),
-                Service(platform="instagram", name="Instagram Comments — Custom", rate_per_1k=8.00, cost_per_1k=5.00, min_qty=10, max_qty=5000, avg_speed="1-2 hours", provider="peakerr", provider_service_id="6", is_active=True),
+                Service(platform="instagram", name="Instagram Followers — High Retention", rate_per_1k=1.20, cost_per_1k=0.80, min_qty=100, max_qty=100000, avg_speed="Instant", is_instant=True, quality_badge="High Quality", provider="wizsmm", provider_service_id="1", refill_enabled=True, is_active=True),
+                Service(platform="instagram", name="Instagram Followers — Real & Active", rate_per_1k=2.50, cost_per_1k=1.80, min_qty=100, max_qty=50000, avg_speed="1-2 hours", is_instant=False, quality_badge="Best Seller", provider="wizsmm", provider_service_id="2", refill_enabled=True, is_active=True),
+                Service(platform="instagram", name="Instagram Post Likes", rate_per_1k=0.30, cost_per_1k=0.10, min_qty=50, max_qty=500000, avg_speed="Instant", is_instant=True, provider="wizsmm", provider_service_id="3", is_active=True),
+                Service(platform="instagram", name="Instagram Video Views", rate_per_1k=0.10, cost_per_1k=0.05, min_qty=500, max_qty=10000000, avg_speed="Instant", is_instant=True, provider="wizsmm", provider_service_id="4", is_active=True),
+                Service(platform="instagram", name="Instagram Story Views", rate_per_1k=0.15, cost_per_1k=0.08, min_qty=100, max_qty=1000000, avg_speed="Instant", is_instant=True, provider="wizsmm", provider_service_id="5", is_active=True),
+                Service(platform="instagram", name="Instagram Comments — Custom", rate_per_1k=8.00, cost_per_1k=5.00, min_qty=10, max_qty=5000, avg_speed="1-2 hours", provider="wizsmm", provider_service_id="6", is_active=True),
                 # TikTok
-                Service(platform="tiktok", name="TikTok Followers — Fast", rate_per_1k=0.80, cost_per_1k=0.50, min_qty=100, max_qty=200000, avg_speed="Instant", is_instant=True, quality_badge="High Quality", provider="jap", provider_service_id="10", refill_enabled=True, is_active=True),
-                Service(platform="tiktok", name="TikTok Video Likes", rate_per_1k=0.20, cost_per_1k=0.08, min_qty=50, max_qty=1000000, avg_speed="Instant", is_instant=True, quality_badge="Best Seller", provider="jap", provider_service_id="11", is_active=True),
-                Service(platform="tiktok", name="TikTok Video Views", rate_per_1k=0.05, cost_per_1k=0.01, min_qty=1000, max_qty=100000000, avg_speed="Instant", is_instant=True, provider="jap", provider_service_id="12", is_active=True),
-                Service(platform="tiktok", name="TikTok Shares", rate_per_1k=1.50, cost_per_1k=1.00, min_qty=100, max_qty=50000, avg_speed="1-2 hours", provider="peakerr", provider_service_id="13", is_active=True),
+                Service(platform="tiktok", name="TikTok Followers — Fast", rate_per_1k=0.80, cost_per_1k=0.50, min_qty=100, max_qty=200000, avg_speed="Instant", is_instant=True, quality_badge="High Quality", provider="wizsmm", provider_service_id="10", refill_enabled=True, is_active=True),
+                Service(platform="tiktok", name="TikTok Video Likes", rate_per_1k=0.20, cost_per_1k=0.08, min_qty=50, max_qty=1000000, avg_speed="Instant", is_instant=True, quality_badge="Best Seller", provider="wizsmm", provider_service_id="11", is_active=True),
+                Service(platform="tiktok", name="TikTok Video Views", rate_per_1k=0.05, cost_per_1k=0.01, min_qty=1000, max_qty=100000000, avg_speed="Instant", is_instant=True, provider="wizsmm", provider_service_id="12", is_active=True),
+                Service(platform="tiktok", name="TikTok Shares", rate_per_1k=1.50, cost_per_1k=1.00, min_qty=100, max_qty=50000, avg_speed="1-2 hours", provider="wizsmm", provider_service_id="13", is_active=True),
                 # YouTube
-                Service(platform="youtube", name="YouTube Views — High Retention", rate_per_1k=1.50, cost_per_1k=1.00, min_qty=500, max_qty=5000000, avg_speed="Gradual", is_instant=False, quality_badge="High Quality", provider="peakerr", provider_service_id="20", is_active=True),
-                Service(platform="youtube", name="YouTube Subscribers", rate_per_1k=3.00, cost_per_1k=2.00, min_qty=100, max_qty=50000, avg_speed="1-2 hours", provider="jap", provider_service_id="21", refill_enabled=True, is_active=True),
-                Service(platform="youtube", name="YouTube Likes", rate_per_1k=0.80, cost_per_1k=0.50, min_qty=50, max_qty=100000, avg_speed="Instant", is_instant=True, provider="jap", provider_service_id="22", is_active=True),
+                Service(platform="youtube", name="YouTube Views — High Retention", rate_per_1k=1.50, cost_per_1k=1.00, min_qty=500, max_qty=5000000, avg_speed="Gradual", is_instant=False, quality_badge="High Quality", provider="wizsmm", provider_service_id="20", is_active=True),
+                Service(platform="youtube", name="YouTube Subscribers", rate_per_1k=3.00, cost_per_1k=2.00, min_qty=100, max_qty=50000, avg_speed="1-2 hours", provider="wizsmm", provider_service_id="21", refill_enabled=True, is_active=True),
+                Service(platform="youtube", name="YouTube Likes", rate_per_1k=0.80, cost_per_1k=0.50, min_qty=50, max_qty=100000, avg_speed="Instant", is_instant=True, provider="wizsmm", provider_service_id="22", is_active=True),
                 # Facebook
-                Service(platform="facebook", name="Facebook Page Likes", rate_per_1k=1.00, cost_per_1k=0.60, min_qty=100, max_qty=100000, avg_speed="1-2 hours", provider="jap", provider_service_id="30", refill_enabled=True, is_active=True),
-                Service(platform="facebook", name="Facebook Post Likes", rate_per_1k=0.50, cost_per_1k=0.20, min_qty=100, max_qty=500000, avg_speed="Instant", is_instant=True, provider="jap", provider_service_id="31", is_active=True),
-                Service(platform="facebook", name="Facebook Followers", rate_per_1k=1.20, cost_per_1k=0.80, min_qty=100, max_qty=100000, avg_speed="1-2 hours", provider="peakerr", provider_service_id="32", is_active=True),
+                Service(platform="facebook", name="Facebook Page Likes", rate_per_1k=1.00, cost_per_1k=0.60, min_qty=100, max_qty=100000, avg_speed="1-2 hours", provider="wizsmm", provider_service_id="30", refill_enabled=True, is_active=True),
+                Service(platform="facebook", name="Facebook Post Likes", rate_per_1k=0.50, cost_per_1k=0.20, min_qty=100, max_qty=500000, avg_speed="Instant", is_instant=True, provider="wizsmm", provider_service_id="31", is_active=True),
+                Service(platform="facebook", name="Facebook Followers", rate_per_1k=1.20, cost_per_1k=0.80, min_qty=100, max_qty=100000, avg_speed="1-2 hours", provider="wizsmm", provider_service_id="32", is_active=True),
                 # Twitter/X
-                Service(platform="twitter", name="Twitter Followers", rate_per_1k=1.50, cost_per_1k=1.00, min_qty=100, max_qty=100000, avg_speed="1-2 hours", provider="jap", provider_service_id="40", refill_enabled=True, is_active=True),
-                Service(platform="twitter", name="Twitter Likes", rate_per_1k=0.40, cost_per_1k=0.20, min_qty=50, max_qty=500000, avg_speed="Instant", is_instant=True, provider="jap", provider_service_id="41", is_active=True),
+                Service(platform="twitter", name="Twitter Followers", rate_per_1k=1.50, cost_per_1k=1.00, min_qty=100, max_qty=100000, avg_speed="1-2 hours", provider="wizsmm", provider_service_id="40", refill_enabled=True, is_active=True),
+                Service(platform="twitter", name="Twitter Likes", rate_per_1k=0.40, cost_per_1k=0.20, min_qty=50, max_qty=500000, avg_speed="Instant", is_instant=True, provider="wizsmm", provider_service_id="41", is_active=True),
                 # Telegram
-                Service(platform="telegram", name="Telegram Channel Members", rate_per_1k=1.00, cost_per_1k=0.60, min_qty=100, max_qty=500000, avg_speed="1-2 hours", provider="jap", provider_service_id="50", is_active=True),
-                Service(platform="telegram", name="Telegram Post Views", rate_per_1k=0.05, cost_per_1k=0.01, min_qty=1000, max_qty=100000000, avg_speed="Instant", is_instant=True, provider="jap", provider_service_id="51", is_active=True),
+                Service(platform="telegram", name="Telegram Channel Members", rate_per_1k=1.00, cost_per_1k=0.60, min_qty=100, max_qty=500000, avg_speed="1-2 hours", provider="wizsmm", provider_service_id="50", is_active=True),
+                Service(platform="telegram", name="Telegram Post Views", rate_per_1k=0.05, cost_per_1k=0.01, min_qty=1000, max_qty=100000000, avg_speed="Instant", is_instant=True, provider="wizsmm", provider_service_id="51", is_active=True),
                 # Spotify
-                Service(platform="spotify", name="Spotify Plays", rate_per_1k=0.50, cost_per_1k=0.30, min_qty=1000, max_qty=10000000, avg_speed="Gradual", provider="jap", provider_service_id="60", is_active=True),
-                Service(platform="spotify", name="Spotify Followers", rate_per_1k=2.00, cost_per_1k=1.50, min_qty=100, max_qty=50000, avg_speed="1-2 hours", provider="jap", provider_service_id="61", is_active=True),
+                Service(platform="spotify", name="Spotify Plays", rate_per_1k=0.50, cost_per_1k=0.30, min_qty=1000, max_qty=10000000, avg_speed="Gradual", provider="wizsmm", provider_service_id="60", is_active=True),
+                Service(platform="spotify", name="Spotify Followers", rate_per_1k=2.00, cost_per_1k=1.50, min_qty=100, max_qty=50000, avg_speed="1-2 hours", provider="wizsmm", provider_service_id="61", is_active=True),
                 # Discord
-                Service(platform="discord", name="Discord Server Members", rate_per_1k=5.00, cost_per_1k=3.50, min_qty=10, max_qty=10000, avg_speed="1-2 hours", provider="peakerr", provider_service_id="70", is_active=True),
+                Service(platform="discord", name="Discord Server Members", rate_per_1k=5.00, cost_per_1k=3.50, min_qty=10, max_qty=10000, avg_speed="1-2 hours", provider="wizsmm", provider_service_id="70", is_active=True),
             ]
             for s in services:
                 db.add(s)

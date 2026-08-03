@@ -184,7 +184,10 @@ async def sync_provider_services(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Sync services from a provider API"""
+    """Sync services from wizsmm provider only"""
+    if provider != "wizsmm":
+        provider = "wizsmm"
+
     services = await get_provider_services(provider)
 
     if not services:
