@@ -2,22 +2,19 @@ import httpx
 from typing import Optional, List, Dict, Any
 from config import settings
 
+# Default provider to use when none is specified
+DEFAULT_PROVIDER = "wizsmm"
+
 PROVIDERS = {
-    "jap": {
-        "url": settings.JAP_API_URL,
-        "key": settings.JAP_API_KEY,
-    },
-    "peakerr": {
-        "url": settings.PEAKERR_API_URL,
-        "key": settings.PEAKERR_API_KEY,
-    },
-    "smmwiz": {
-        "url": settings.SMMWIZ_API_URL,
-        "key": settings.SMMWIZ_API_KEY,
+    "wizsmm": {
+        "url": settings.WIZSMM_API_URL,
+        "key": settings.WIZSMM_API_KEY,
     }
 }
 
 async def call_provider_api(provider: str, params: Dict[str, Any]) -> Optional[Dict]:
+    if not provider:
+        provider = DEFAULT_PROVIDER
     config = PROVIDERS.get(provider)
     if not config or not config["key"]:
         return None
@@ -32,7 +29,7 @@ async def call_provider_api(provider: str, params: Dict[str, Any]) -> Optional[D
             print(f"Provider {provider} error: {e}")
             return None
 
-async def get_provider_services(provider: str = "jap") -> List[Dict]:
+async def get_provider_services(provider: str = DEFAULT_PROVIDER) -> List[Dict]:
     result = await call_provider_api(provider, {"action": "services"})
     if not result:
         return []
@@ -74,7 +71,7 @@ async def request_provider_refill(provider: str, order_id: str) -> Optional[Dict
 async def cancel_provider_order(provider: str, order_id: str) -> Optional[Dict]:
     return await call_provider_api(provider, {
         "action": "cancel",
-        "orders": order_id
+        "order": order_id
     })
 
 def map_provider_status(provider_status: str) -> str:

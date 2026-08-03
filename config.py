@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     PEAKERR_API_URL: str = "https://peakerr.com/api/v2"
     SMMWIZ_API_KEY: str = ""
     SMMWIZ_API_URL: str = "https://smmwiz.com/api/v2"
+    WIZSMM_API_KEY: str = ""
+    WIZSMM_API_URL: str = "https://wizsmm.com/api/v2"
 
     # Email (Brevo)
     BREVO_API_KEY: str = ""

@@ -470,6 +470,8 @@ async def get_settings(
         "currency": settings_obj.currency,
         "currency_symbol": settings_obj.currency_symbol,
         "telegram_link": settings_obj.telegram_link,
+        "whatsapp_link": settings_obj.whatsapp_link,
+        "whatsapp_support": settings_obj.whatsapp_support,
         "telegram_support": settings_obj.telegram_support,
         "liberia_mtn_number": settings_obj.liberia_mtn_number,
         "liberia_orange_number": settings_obj.liberia_orange_number,
@@ -495,12 +497,12 @@ async def update_settings(
 
     allowed = [
         "site_name", "site_description", "telegram_link",
-        "support_email", "maintenance_mode",
+        "whatsapp_link", "support_email", "maintenance_mode",
         "registration_open", "default_provider", "auto_sync_services"
     ]
     # allow manual payment settings to be updated
     allowed += [
-        "telegram_support", "liberia_mtn_number", "liberia_orange_number",
+        "whatsapp_support", "telegram_support", "liberia_mtn_number", "liberia_orange_number",
         "manual_payment_instructions", "manual_payment_time"
     ]
     for field in allowed:

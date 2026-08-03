@@ -19,3 +19,4 @@ async def send_telegram_message(text: str) -> bool:
             return resp.status_code == 200
     except Exception:
         return False
+        
