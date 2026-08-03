@@ -14,3 +14,7 @@ env/
 *.csv
 Generate-TopServices.ps1
 recommended_ids.json
+
+*.csv
+
+*.csv

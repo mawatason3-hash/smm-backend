@@ -1,5 +1,5 @@
 from .user import User, RefreshToken, PasswordResetToken
-from .service import Service, ServiceCategory
+from .service import Service
 from .order import Order
 from .transaction import Transaction
 from .site_settings import SiteSettings
@@ -8,7 +8,7 @@ from .manual_payment import ManualPayment
 
 __all__ = [
     "User", "RefreshToken", "PasswordResetToken",
-    "Service", "ServiceCategory",
+    "Service",
     "Order",
     "Transaction",
     "SiteSettings",

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from database import get_db
-from models.service import Service, ServiceCategory
+from models.service import Service
 from models.user import User
 from models.site_settings import SiteSettings
 from schemas.order import ServiceCreateRequest, ServiceUpdateRequest

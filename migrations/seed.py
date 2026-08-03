@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy import select
 from database import Base
 from models.user import User
-from models.service import Service, ServiceCategory
+from models.service import Service
 from models.site_settings import SiteSettings
 from models.admin_log import AdminActivityLog
 from models.order import Order
