@@ -150,6 +150,32 @@ async def get_provider_balance(
         "currency": result.get("currency", "USD")
     }
 
+@router.post("/services/purge-provider")
+async def purge_provider_services(
+    data: dict,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    provider = data.get("provider")
+    if not provider:
+        raise HTTPException(status_code=400, detail="provider required")
+
+    stmt = delete(Service).where(Service.provider == provider)
+    result = await db.execute(stmt)
+    await db.commit()
+
+    log = AdminActivityLog(
+        admin_id=admin.id,
+        action="purge_provider_services",
+        target_type="service",
+        target_id="bulk",
+        details={"provider": provider, "count": result.rowcount}
+    )
+    db.add(log)
+    await db.commit()
+
+    return {"message": f"Deleted {result.rowcount} services from {provider}"}
+
 @router.get("/users")
 async def list_users(
     admin: User = Depends(get_current_admin),
