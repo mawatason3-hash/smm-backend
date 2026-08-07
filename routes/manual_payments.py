@@ -149,6 +149,8 @@ async def get_manual_payment_settings(
         return {
             "mtn_number": settings.liberia_mtn_number,
             "orange_number": settings.liberia_orange_number,
+            "whatsapp_link": settings.whatsapp_link,
+            "whatsapp_support": settings.whatsapp_support,
             "telegram": settings.telegram_support,
             "instructions": (settings.manual_payment_instructions or "Send the amount to the number above and submit your proof. Transaction ID is optional — you can also message our admin on Telegram for help."),
             "processing_time": settings.manual_payment_time
@@ -156,6 +158,8 @@ async def get_manual_payment_settings(
     return {
         "mtn_number": "",
         "orange_number": "",
+        "whatsapp_link": settings.whatsapp_link,
+        "whatsapp_support": settings.whatsapp_support,
         "telegram": settings.telegram_support,
         "instructions": (settings.manual_payment_instructions or "Submit your amount and phone number. Our admin will review and send the correct payment method for your country; you can also message us on Telegram for faster help."),
         "processing_time": settings.manual_payment_time

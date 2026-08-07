@@ -194,14 +194,23 @@ async def get_pawapay_active_configuration() -> Dict[str, str]:
 
                 for provider in country.get("providers", []) or []:
                     provider_code = provider.get("provider") or provider.get("code")
+                    if provider_code is None:
+                        continue
+                    provider_code = str(provider_code).strip()
                     if not provider_code:
                         continue
 
                     local_currency = None
                     for currency_info in provider.get("currencies", []) or []:
                         currency = currency_info.get("currency")
-                        operation_types = currency_info.get("operationTypes", {}) or {}
-                        if currency and operation_types.get("DEPOSIT") is not None:
+                        operation_types = currency_info.get("operationTypes") or {}
+                        deposit_allowed = False
+                        if isinstance(operation_types, dict):
+                            deposit_allowed = operation_types.get("DEPOSIT") is not None
+                        elif isinstance(operation_types, (list, tuple, set)):
+                            deposit_allowed = "DEPOSIT" in operation_types
+
+                        if currency and deposit_allowed:
                             local_currency = currency
                             break
 
@@ -473,23 +482,33 @@ async def pawapay_check_deposit(deposit_id: str) -> Optional[Dict]:
             print(f"PawaPay check error: {e}")
             return None
 
+def _normalize_country_key(name: str) -> str:
+    return _normalize_country_name(name)
+
+
 async def get_pawapay_country_correspondents(country: str) -> Dict[str, str]:
     """Return available PawaPay correspondents for the requested country."""
     if not country:
         return {}
 
     await get_pawapay_active_configuration()
-    normalized_country = _normalize_country_name(country)
+    normalized_country = _normalize_country_key(country)
     country_map = _active_config_cache.get("country_map") or {}
 
     if normalized_country in country_map:
         return country_map[normalized_country]
 
     for key, providers in country_map.items():
-        if normalized_country == key or normalized_country in key or key in normalized_country:
+        normalized_key = _normalize_country_key(key)
+        if normalized_country == normalized_key or normalized_country in normalized_key or normalized_key in normalized_country:
             return providers
 
-    return COUNTRY_CORRESPONDENT_MAP.get(country, {})
+    for key, providers in COUNTRY_CORRESPONDENT_MAP.items():
+        normalized_key = _normalize_country_key(key)
+        if normalized_country == normalized_key or normalized_country in normalized_key or normalized_key in normalized_country:
+            return providers
+
+    return {}
 
 
 
