@@ -232,18 +232,20 @@ async def sync_provider_services(
             existing_service.rate_per_1k = retail_rate
             if auto_activate:
                 existing_service.is_active = True
+            existing_service.provider_service_id = str(svc.get("service", ""))
         else:
             # Create new
             new_service = Service(
                 platform=inferred_platform,
-                name=svc.get("name", ""),
+                name=str(svc.get("name", "")),
                 rate_per_1k=retail_rate,
                 cost_per_1k=provider_cost,
                 min_qty=int(svc.get("min", 10)),
                 max_qty=int(svc.get("max", 100000)),
-                provider=provider,
+                provider=str(provider),
                 provider_service_id=str(svc.get("service", "")),
-                avg_speed="1-2 hours",
+                avg_speed=str(svc.get("avg", "1-2 hours") or "1-2 hours"),
+                quality_badge=str(svc.get("quality_badge")) if svc.get("quality_badge") is not None else None,
                 is_active=auto_activate
             )
             db.add(new_service)
