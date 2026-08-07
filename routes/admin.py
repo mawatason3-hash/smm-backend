@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, and_, update, delete
 from database import get_db
-from models.user import User
+from models.user import User, RefreshToken, PasswordResetToken
 from models.order import Order
 from models.transaction import Transaction
 from models.service import Service
@@ -377,6 +377,42 @@ async def suspend_user(
     db.add(log)
     await db.commit()
     return {"message": "User suspended"}
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    if str(admin.id) == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role in ["admin", "super_admin"]:
+        raise HTTPException(status_code=400, detail="Cannot delete admin users")
+
+    await db.execute(delete(RefreshToken).where(RefreshToken.user_id == user.id))
+    await db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
+    await db.execute(delete(Transaction).where(Transaction.user_id == user.id))
+    await db.execute(delete(Order).where(Order.user_id == user.id))
+    await db.execute(delete(User).where(User.id == user.id))
+    await db.commit()
+
+    log = AdminActivityLog(
+        admin_id=admin.id,
+        action="delete_user",
+        target_type="user",
+        target_id=user_id
+    )
+    db.add(log)
+    await db.commit()
+
+    return {"message": "User deleted"}
 
 
 @router.post("/services/fix-platforms")
