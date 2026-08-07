@@ -160,6 +160,14 @@ async def purge_provider_services(
     if not provider:
         raise HTTPException(status_code=400, detail="provider required")
 
+    service_ids_result = await db.execute(
+        select(Service.id).where(Service.provider == provider)
+    )
+    service_ids = [row[0] for row in service_ids_result.all()]
+
+    if service_ids:
+        await db.execute(delete(Order).where(Order.service_id.in_(service_ids)))
+
     stmt = delete(Service).where(Service.provider == provider)
     result = await db.execute(stmt)
     await db.commit()
