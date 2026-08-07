@@ -14,6 +14,7 @@ from services.payment_service import (
     pawapay_initiate_deposit,
     pawapay_check_deposit,
     get_pawapay_country_correspondents,
+    get_pawapay_local_currency,
     COUNTRY_CORRESPONDENT_MAP,
     normalize_phone_e164,
     get_pawapay_active_configuration,
@@ -338,41 +339,27 @@ async def initiate_pawapay(
         print(f"✗ Invalid payment method: {data.payment_method}")
         raise HTTPException(status_code=400, detail=f"Invalid payment method: {data.payment_method}")
     
-    correspondent = data.payment_method.replace("pawapay_", "")
+    correspondent = data.payment_method[len("pawapay_"):].strip().upper()
     print(f"✓ Payment method: {data.payment_method} → correspondent: {correspondent}")
-    
-    # ──────────── CURRENCY CONVERSION ────────────────────────────────────────
-    # Fetch PawaPay's active configuration to get the real currency for this correspondent
-    active_config = await get_pawapay_active_configuration()
-    local_currency = active_config.get(correspondent)
 
-    if not local_currency:
-        if active_config:
-            print(f"✗ Correspondent {correspondent} not found in active configuration")
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Mobile money provider {correspondent} is not currently configured on our payment account. "
-                    f"Please try a different payment method."
-                )
-            )
-        local_currency = CORRESPONDENT_CURRENCY_MAP.get(correspondent)
-        if local_currency:
-            print(f"⚠ Using fallback currency for {correspondent}: {local_currency}")
+    supported_correspondents = await get_pawapay_country_correspondents(current_user.country)
+    if supported_correspondents and correspondent not in supported_correspondents.values():
+        print(f"✗ Correspondent {correspondent} not available for country {current_user.country}")
+        raise HTTPException(status_code=400, detail="Selected mobile money provider is not available for your country")
+
+    # ──────────── CURRENCY CONVERSION ────────────────────────────────────────
+    local_currency = await get_pawapay_local_currency(correspondent)
 
     if not local_currency:
         print(f"✗ Correspondent {correspondent} currency unavailable")
         raise HTTPException(
-            status_code=503,
+            status_code=400,
             detail=(
-                f"Payment provider {correspondent} is not currently active. "
-                f"Please try another payment method."
+                f"Payment provider {correspondent} is not currently active or not supported for your country. "
+                f"Please try a different payment method."
             )
         )
-    
-    print(f"✓ Correspondent {correspondent} currency: {local_currency}")
-    
-    # Convert USD to local currency if needed
+
     if local_currency != "USD":
         exchange_rate = await get_exchange_rate("USD", local_currency)
         # For currencies without decimal (RWF, UGX, TZS, XAF, XOF), round to 0 decimals
@@ -380,6 +367,7 @@ async def initiate_pawapay(
             local_amount = int(round(data.amount * exchange_rate))
         else:
             local_amount = round(data.amount * exchange_rate, 2)
+        print(f"✓ Correspondent {correspondent} currency: {local_currency}")
         print(f"✓ Converted ${data.amount} USD → {local_amount} {local_currency} (rate: {exchange_rate})")
     else:
         exchange_rate = 1.0
@@ -446,18 +434,13 @@ async def preview_pawapay_conversion(
     if not current_user.country:
         raise HTTPException(status_code=400, detail="Country not set")
     
-    correspondent = data.payment_method.replace("pawapay_", "")
-    
-    # Get currency for this correspondent
-    active_config = await get_pawapay_active_configuration()
-    local_currency = active_config.get(correspondent)
-    if not local_currency:
-        if active_config:
-            raise HTTPException(status_code=400, detail=f"Correspondent {correspondent} not found")
-        local_currency = CORRESPONDENT_CURRENCY_MAP.get(correspondent)
-        if local_currency:
-            print(f"⚠ Using fallback currency for preview of {correspondent}: {local_currency}")
+    correspondent = data.payment_method[len("pawapay_"):].strip().upper()
 
+    supported_correspondents = await get_pawapay_country_correspondents(current_user.country)
+    if supported_correspondents and correspondent not in supported_correspondents.values():
+        raise HTTPException(status_code=400, detail="Selected mobile money provider is not available for your country")
+
+    local_currency = await get_pawapay_local_currency(correspondent)
     if not local_currency:
         raise HTTPException(status_code=400, detail=f"Correspondent {correspondent} not found")
     

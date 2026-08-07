@@ -153,6 +153,12 @@ def _format_pawapay_network_name(provider_code: str) -> str:
     return provider_code.replace("_", " ").title()
 
 
+def _normalize_correspondent_code(code: str) -> str:
+    if not code:
+        return ""
+    return str(code).strip().upper()
+
+
 async def get_pawapay_active_configuration() -> Dict[str, str]:
     """
     Fetches the list of correspondents and their currencies from PawaPay's
@@ -194,9 +200,7 @@ async def get_pawapay_active_configuration() -> Dict[str, str]:
 
                 for provider in country.get("providers", []) or []:
                     provider_code = provider.get("provider") or provider.get("code")
-                    if provider_code is None:
-                        continue
-                    provider_code = str(provider_code).strip()
+                    provider_code = _normalize_correspondent_code(provider_code)
                     if not provider_code:
                         continue
 
@@ -484,6 +488,19 @@ async def pawapay_check_deposit(deposit_id: str) -> Optional[Dict]:
 
 def _normalize_country_key(name: str) -> str:
     return _normalize_country_name(name)
+
+
+async def get_pawapay_local_currency(correspondent: str) -> Optional[str]:
+    correspondent = _normalize_correspondent_code(correspondent)
+    if not correspondent:
+        return None
+
+    active_config = await get_pawapay_active_configuration()
+    if active_config:
+        currency = active_config.get(correspondent)
+        if currency:
+            return currency
+    return CORRESPONDENT_CURRENCY_MAP.get(correspondent)
 
 
 async def get_pawapay_country_correspondents(country: str) -> Dict[str, str]:
