@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -72,3 +74,11 @@ app.include_router(transactions.router)
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "version": settings.APP_VERSION, "app": settings.APP_NAME}
+
+@app.get("/api/version")
+async def version():
+    return {
+        "version": settings.APP_VERSION,
+        "app": settings.APP_NAME,
+        "commit": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "unknown"),
+    }
