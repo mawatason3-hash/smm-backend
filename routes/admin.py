@@ -166,6 +166,18 @@ async def purge_provider_services(
     service_ids = [row[0] for row in service_ids_result.all()]
 
     if service_ids:
+        order_ids_result = await db.execute(
+            select(Order.id).where(Order.service_id.in_(service_ids))
+        )
+        order_ids = [row[0] for row in order_ids_result.all()]
+
+        if order_ids:
+            await db.execute(
+                update(Transaction)
+                .where(Transaction.order_id.in_(order_ids))
+                .values(order_id=None)
+            )
+
         await db.execute(delete(Order).where(Order.service_id.in_(service_ids)))
 
     stmt = delete(Service).where(Service.provider == provider)
