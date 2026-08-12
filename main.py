@@ -3,10 +3,14 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from database import create_tables
 from config import settings
 from routes import auth, orders, services, payments, admin, developer, transactions, manual_payments, giveaway
+from routes import tickets, webhooks
+from services.order_sync import start_order_status_sync, stop_order_status_sync
+import os
 import traceback
 
 @asynccontextmanager
@@ -28,8 +32,13 @@ async def lifespan(app: FastAPI):
         print(f"✓ PawaPay configured (Mobile Money)")
     else:
         print(f"✗ PawaPay NOT configured — mobile money payments will fail")
-    
-    yield
+
+    # Start background status sync loop
+    sync_task = start_order_status_sync()
+    try:
+        yield
+    finally:
+        stop_order_status_sync(sync_task)
 
 app = FastAPI(
     title="BOASTLIB API",
@@ -71,6 +80,10 @@ app.include_router(admin.router)
 app.include_router(developer.router)
 app.include_router(transactions.router)
 app.include_router(giveaway.router)
+app.include_router(tickets.router)
+app.include_router(webhooks.router)
+
+app.mount('/uploads', StaticFiles(directory=os.path.join(os.path.dirname(__file__), 'uploads')), name='uploads')
 
 @app.get("/api/health")
 async def health():

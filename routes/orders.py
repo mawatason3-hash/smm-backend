@@ -140,6 +140,7 @@ async def get_my_orders(
             "quantity": order.quantity,
             "charge": float(order.charge),
             "status": order.status,
+            "status_details": order.status_details,
             "start_count": order.start_count,
             "remains": order.remains,
             "is_admin_power": order.is_admin_power,

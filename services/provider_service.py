@@ -88,5 +88,7 @@ def map_provider_status(provider_status: str) -> str:
         "Partial": "partial",
         "Cancelled": "cancelled",
         "Canceled": "cancelled",
+        "Refunded": "refunded",
+        "Refund": "refunded",
     }
     return status_map.get(provider_status, "pending")

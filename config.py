@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     BREVO_API_KEY: str = ""
     FROM_EMAIL: str = "noreply@boastlib.com"
     FROM_NAME: str = "BOASTLIB"
+    # Admin notification target (comma-separated emails)
+    ADMIN_NOTIFICATION_EMAILS: str = ""
+    # Order sync interval seconds (default 300 = 5 minutes)
+    ORDER_SYNC_INTERVAL_SECONDS: int = 300
 
     # Frontend
     FRONTEND_URL: str = "https://boastlib.space"

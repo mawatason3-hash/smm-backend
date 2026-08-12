@@ -63,6 +63,7 @@ async def list_services(
             "max_qty": s.max_qty,
             "avg_speed": s.avg_speed,
             "is_instant": s.is_instant,
+            "is_recommended": s.is_recommended,
             "quality_badge": s.quality_badge,
             "refill_enabled": s.refill_enabled,
             "cancel_enabled": s.cancel_enabled,

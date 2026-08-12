@@ -33,6 +33,7 @@ class User(Base):
     transactions = relationship("Transaction", back_populates="user")
     refresh_tokens = relationship("RefreshToken", back_populates="user")
     admin_logs = relationship("AdminActivityLog", back_populates="admin", foreign_keys="AdminActivityLog.admin_id")
+    tickets = relationship("Ticket", back_populates="user")
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"

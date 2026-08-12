@@ -22,7 +22,8 @@ class Order(Base):
 
     # Status tracking
     status = Column(String(30), default="pending", nullable=False, index=True)
-    # pending, processing, in_progress, completed, partial, cancelled, error
+    status_details = Column(Text, nullable=True)
+    # pending, processing, in_progress, completed, partial, cancelled, refunded, error
 
     # Progress
     start_count = Column(Integer, default=0)
@@ -45,3 +46,4 @@ class Order(Base):
 
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
     service = relationship("Service", back_populates="orders")
+    tickets = relationship("Ticket", back_populates="order")

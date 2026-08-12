@@ -17,6 +17,7 @@ from utils.security import (
 )
 from middleware.auth_middleware import get_current_user
 from config import settings
+from services.notification_service import send_email
 import uuid
 import secrets
 
@@ -206,7 +207,16 @@ async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depend
         )
         db.add(reset_token)
         await db.commit()
-        # TODO: Send email via Brevo
+
+        reset_url = f"{settings.FRONTEND_URL.rstrip('/')}/auth/reset-password?token={token}"
+        html = f"""
+        <p>Hello,</p>
+        <p>You requested a password reset for your BOASTLIB account.</p>
+        <p><a href="{reset_url}">Reset your password</a></p>
+        <p>This link expires in 1 hour.</p>
+        <p>If you did not request this, you can ignore this email.</p>
+        """
+        await send_email(user.email, "Reset your BOASTLIB password", html)
 
     return {"message": "If that email exists, a reset link has been sent"}
 
