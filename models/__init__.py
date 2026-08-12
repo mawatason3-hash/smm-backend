@@ -5,6 +5,7 @@ from .transaction import Transaction
 from .site_settings import SiteSettings
 from .admin_log import AdminActivityLog
 from .manual_payment import ManualPayment
+from .giveaway_submission import GiveawaySubmission
 
 __all__ = [
     "User", "RefreshToken", "PasswordResetToken",
@@ -14,4 +15,5 @@ __all__ = [
     "SiteSettings",
     "AdminActivityLog",
     "ManualPayment",
+    "GiveawaySubmission",
 ]

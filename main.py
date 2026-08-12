@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from database import create_tables
 from config import settings
-from routes import auth, orders, services, payments, admin, developer, transactions, manual_payments
+from routes import auth, orders, services, payments, admin, developer, transactions, manual_payments, giveaway
 import traceback
 
 @asynccontextmanager
@@ -70,6 +70,7 @@ app.include_router(manual_payments.admin_router)
 app.include_router(admin.router)
 app.include_router(developer.router)
 app.include_router(transactions.router)
+app.include_router(giveaway.router)
 
 @app.get("/api/health")
 async def health():

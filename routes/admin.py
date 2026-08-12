@@ -8,9 +8,12 @@ from models.transaction import Transaction
 from models.service import Service
 from models.site_settings import SiteSettings
 from models.admin_log import AdminActivityLog
+from models.giveaway_submission import GiveawaySubmission
 from middleware.auth_middleware import get_current_admin
 from services.provider_service import check_provider_balance
+from schemas.giveaway import AdminGiveawayApproveRequest, AdminGiveawayRejectRequest
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 import uuid
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -644,6 +647,162 @@ async def admin_list_orders(
         "page": page,
         "pages": (total + limit - 1) // limit
     }
+
+@router.get("/giveaway-submissions")
+async def list_giveaway_submissions(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    status: str = Query(None)
+):
+    query = select(GiveawaySubmission, User).join(User, GiveawaySubmission.user_id == User.id)
+
+    if status:
+        query = query.where(GiveawaySubmission.status == status)
+
+    total = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar() or 0
+    pending = (await db.execute(select(func.count(GiveawaySubmission.id)).where(GiveawaySubmission.status == 'pending'))).scalar() or 0
+    approved = (await db.execute(select(func.count(GiveawaySubmission.id)).where(GiveawaySubmission.status == 'approved'))).scalar() or 0
+    rejected = (await db.execute(select(func.count(GiveawaySubmission.id)).where(GiveawaySubmission.status == 'rejected'))).scalar() or 0
+
+    query = query.order_by(desc(GiveawaySubmission.created_at)).offset((page - 1) * limit).limit(limit)
+    results = (await db.execute(query)).all()
+
+    return {
+        "items": [
+            {
+                "id": str(submission.id),
+                "user": {
+                    "id": str(user.id),
+                    "full_name": user.full_name,
+                    "email": user.email,
+                    "country": user.country
+                },
+                "giveaway_type": submission.giveaway_type,
+                "proof_url": submission.proof_url,
+                "details": submission.details,
+                "status": submission.status,
+                "admin_note": submission.admin_note,
+                "reviewed_at": submission.reviewed_at.isoformat() if submission.reviewed_at else None,
+                "created_at": submission.created_at.isoformat(),
+            }
+            for submission, user in results
+        ],
+        "total": total,
+        "counts": {
+            "pending": pending,
+            "approved": approved,
+            "rejected": rejected,
+            "all": pending + approved + rejected,
+        },
+        "page": page,
+        "pages": (total + limit - 1) // limit
+    }
+
+@router.post("/giveaway-submissions/{submission_id}/approve")
+async def approve_giveaway_submission(
+    submission_id: str,
+    data: AdminGiveawayApproveRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Reward amount must be greater than zero")
+
+    result = await db.execute(select(GiveawaySubmission).where(GiveawaySubmission.id == submission_id))
+    submission = result.scalar_one_or_none()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if submission.status != 'pending':
+        raise HTTPException(status_code=400, detail="Only pending submissions can be approved")
+
+    user_result = await db.execute(select(User).where(User.id == submission.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    reward_amount = Decimal(str(data.amount))
+    submission.status = 'approved'
+    submission.admin_note = data.admin_note or ''
+    submission.reviewed_by = admin.id
+    submission.reviewed_at = datetime.now(timezone.utc)
+
+    user.balance += reward_amount
+
+    transaction = Transaction(
+        id=uuid.uuid4(),
+        user_id=user.id,
+        type='admin_adjustment',
+        amount=reward_amount,
+        balance_before=user.balance - reward_amount,
+        balance_after=user.balance,
+        currency='USD',
+        payment_method='giveaway_reward',
+        payment_reference=str(submission.id),
+        status='completed',
+        description=f"Giveaway reward: {submission.giveaway_type}"
+    )
+
+    log = AdminActivityLog(
+        id=uuid.uuid4(),
+        admin_id=admin.id,
+        action='approve_giveaway_submission',
+        target_type='giveaway_submission',
+        target_id=str(submission.id),
+        details={
+            'user_id': str(user.id),
+            'user_email': user.email,
+            'giveaway_type': submission.giveaway_type,
+            'amount': float(reward_amount),
+            'admin_note': submission.admin_note,
+        }
+    )
+
+    db.add(submission)
+    db.add(user)
+    db.add(transaction)
+    db.add(log)
+    await db.commit()
+
+    return {"message": "Giveaway submission approved and reward credited"}
+
+@router.post("/giveaway-submissions/{submission_id}/reject")
+async def reject_giveaway_submission(
+    submission_id: str,
+    data: AdminGiveawayRejectRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(GiveawaySubmission).where(GiveawaySubmission.id == submission_id))
+    submission = result.scalar_one_or_none()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if submission.status != 'pending':
+        raise HTTPException(status_code=400, detail="Only pending submissions can be rejected")
+
+    submission.status = 'rejected'
+    submission.admin_note = data.admin_note
+    submission.reviewed_by = admin.id
+    submission.reviewed_at = datetime.now(timezone.utc)
+
+    log = AdminActivityLog(
+        id=uuid.uuid4(),
+        admin_id=admin.id,
+        action='reject_giveaway_submission',
+        target_type='giveaway_submission',
+        target_id=str(submission.id),
+        details={
+            'giveaway_type': submission.giveaway_type,
+            'admin_note': data.admin_note,
+        }
+    )
+
+    db.add(submission)
+    db.add(log)
+    await db.commit()
+
+    return {"message": "Giveaway submission rejected"}
 
 @router.get("/activity-log")
 async def get_activity_log(
