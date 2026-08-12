@@ -21,5 +21,5 @@ class Ticket(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     order = relationship("Order", back_populates="tickets")
-    user = relationship("User", foreign_keys=[user_id])
-    admin = relationship("User", foreign_keys=[admin_id])
+    user = relationship("User", foreign_keys=[user_id], back_populates="tickets")
+    admin = relationship("User", foreign_keys=[admin_id], back_populates="admin_tickets")
