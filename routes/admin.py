@@ -137,7 +137,8 @@ async def get_provider_balance(
     provider: str,
     admin: User = Depends(get_current_admin),
 ):
-    if provider != "wizsmm":
+    provider = provider.lower()
+    if provider not in {"wizsmm", "morethanpanel"}:
         raise HTTPException(status_code=400, detail="Unsupported provider")
 
     result = await check_provider_balance(provider)

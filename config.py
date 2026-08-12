@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     PAWAPAY_BASE_URL: str = "https://api.pawapay.io"
 
     # SMM Providers
+    MORETHANPANEL_API_KEY: str = ""
+    MORETHANPANEL_API_URL: str = "https://morethanpanel.com/api/v2"
     WIZSMM_API_KEY: str = ""
     WIZSMM_API_URL: str = "https://wizsmm.com/api/v2"
 

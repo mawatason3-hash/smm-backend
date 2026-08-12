@@ -13,6 +13,8 @@ import uuid
 
 router = APIRouter(prefix="/api/services", tags=["services"])
 
+SUPPORTED_PROVIDERS = {"wizsmm", "morethanpanel"}
+
 KNOWN_PLATFORMS = [
     'instagram', 'tiktok', 'youtube', 'facebook', 'twitter', 'x',
     'telegram', 'spotify', 'discord', 'twitch', 'linkedin',
@@ -184,9 +186,9 @@ async def sync_provider_services(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Sync services from wizsmm provider only"""
-    if provider != "wizsmm":
-        provider = "wizsmm"
+    provider = provider.lower()
+    if provider not in SUPPORTED_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
 
     services = await get_provider_services(provider)
 

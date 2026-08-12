@@ -3,9 +3,13 @@ from typing import Optional, List, Dict, Any
 from config import settings
 
 # Default provider to use when none is specified
-DEFAULT_PROVIDER = "wizsmm"
+DEFAULT_PROVIDER = "morethanpanel"
 
 PROVIDERS = {
+    "morethanpanel": {
+        "url": settings.MORETHANPANEL_API_URL,
+        "key": settings.MORETHANPANEL_API_KEY,
+    },
     "wizsmm": {
         "url": settings.WIZSMM_API_URL,
         "key": settings.WIZSMM_API_KEY,

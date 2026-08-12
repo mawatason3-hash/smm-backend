@@ -21,7 +21,7 @@ class SiteSettings(Base):
     registration_open = Column(Boolean, default=True)
 
     # Provider settings
-    default_provider = Column(String(50), default="wizsmm")
+    default_provider = Column(String(50), default="morethanpanel")
     auto_sync_services = Column(Boolean, default=True)
 
     # Liberia Mobile Money Settings
