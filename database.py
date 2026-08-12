@@ -47,12 +47,15 @@ async def get_db():
 async def create_tables():
     try:
         async with engine.begin() as conn:
-            inspector = await conn.run_sync(inspect)
-            existing_tables = set(inspector.get_table_names())
+            def _inspect_tables(sync_conn):
+                return set(inspect(sync_conn).get_table_names())
+
+            existing_tables = await conn.run_sync(_inspect_tables)
 
             for table in Base.metadata.sorted_tables:
                 if table.name in existing_tables:
                     continue
+
                 try:
                     await conn.run_sync(lambda sync_conn, tbl=table: tbl.create(bind=sync_conn, checkfirst=True))
                 except IntegrityError as exc:
