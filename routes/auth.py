@@ -216,7 +216,9 @@ async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depend
         <p>This link expires in 1 hour.</p>
         <p>If you did not request this, you can ignore this email.</p>
         """
-        await send_email(user.email, "Reset your BOASTLIB password", html)
+        email_sent = await send_email(user.email, "Reset your BOASTLIB password", html)
+        if not email_sent:
+            print(f"Password reset email failed for {user.email}. Check BREVO_API_KEY and verified sender email.")
 
     return {"message": "If that email exists, a reset link has been sent"}
 

@@ -31,7 +31,11 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     # CORS
-    CORS_ORIGINS: str = "https://boastlib.space,https://www.boastlib.space,https://smm-frontend-blue.vercel.app,http://localhost:3000"
+    CORS_ORIGINS: str = (
+        "https://boastlib.space,https://www.boastlib.space,https://boastlib.vercel.app,"
+        "https://smm-frontend-blue.vercel.app,https://web-production-688be.up.railway.app,"
+        "http://localhost:3000,http://127.0.0.1:3000"
+    )
 
     # Paystack (card payments)
     PAYSTACK_SECRET_KEY: str = ""

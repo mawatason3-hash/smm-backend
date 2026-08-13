@@ -33,6 +33,11 @@ async def lifespan(app: FastAPI):
     else:
         print(f"✗ PawaPay NOT configured — mobile money payments will fail")
 
+    if settings.BREVO_API_KEY:
+        print(f"✓ Brevo configured (sender: {settings.FROM_EMAIL})")
+    else:
+        print(f"✗ Brevo API key not configured — password reset and ticket email notifications will fail")
+
     # Start background status sync loop
     sync_task = start_order_status_sync()
     try:
@@ -50,7 +55,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"^https://.*\.vercel\.app$",
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|(?:www\.)?boastlib\.space|.*\.vercel\.app|.*\.railway\.app)(?::\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

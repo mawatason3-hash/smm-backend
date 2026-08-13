@@ -72,7 +72,27 @@ async def create_tables():
             raise
 
     async with engine.begin() as conn:
+        def _get_table_columns(sync_conn):
+            inspector = inspect(sync_conn)
+            return {
+                table_name: {column["name"] for column in inspector.get_columns(table_name)}
+                for table_name in inspector.get_table_names()
+            }
+
+        table_columns = await conn.run_sync(_get_table_columns)
+
+        if "orders" in table_columns and "status_details" not in table_columns["orders"]:
+            await conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_details TEXT"))
+
+        if "orders" in table_columns and "error_message" not in table_columns["orders"]:
+            await conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS error_message TEXT"))
+
+        if "orders" in table_columns and "notes" not in table_columns["orders"]:
+            await conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes TEXT"))
+
+        if "services" in table_columns and "is_recommended" not in table_columns["services"]:
+            await conn.execute(text(
+                "ALTER TABLE services ADD COLUMN IF NOT EXISTS is_recommended BOOLEAN NOT NULL DEFAULT false"
+            ))
+
         await conn.execute(text("CREATE SEQUENCE IF NOT EXISTS order_number_seq START 10001"))
-        await conn.execute(text(
-            "ALTER TABLE services ADD COLUMN IF NOT EXISTS is_recommended BOOLEAN NOT NULL DEFAULT false"
-        ))
